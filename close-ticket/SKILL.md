@@ -17,11 +17,19 @@ order; stop and report if any check fails.
    integration branch, e.g. `main`/`develop`/`master`; take it from the PR
    itself, don't assume), that CI is green, and that it's approved /
    review-complete. Report the state; do NOT merge.
-3. **Get go-ahead.** Merging requires my explicit confirmation. Ask, then
+3. **Lint & test.** If the repo's CI already ran lint and tests on this PR
+   and it's green, trust it and skip this step. Otherwise (no CI, or CI
+   doesn't cover them) discover the project's lint/test commands (package
+   scripts, Makefile, CONTRIBUTING) and run them locally on the PR branch;
+   stop and report on failure.
+4. **Final review pass.** Run the code-review skill against the PR. If it
+   reports confirmed findings, stop and report them instead of proceeding —
+   the ticket isn't ready to close.
+5. **Get go-ahead.** Merging requires my explicit confirmation. Ask, then
    wait. Never merge without it.
-4. **Merge** into the base branch once confirmed (`gh pr merge`), then delete
+6. **Merge** into the base branch once confirmed (`gh pr merge`), then delete
    the ticket branch.
-5. **Close the ticket in tracking.** Update wherever this project records
+7. **Close the ticket in tracking.** Update wherever this project records
    ticket status, if anywhere. Discover it rather than assuming a fixed path:
    - If an issue tracker is in use (GitHub Issues via `gh`, Jira, Linear,
      etc.), transition/close the ticket there.
@@ -29,6 +37,6 @@ order; stop and report if any check fails.
      markdown), find those files, move the ticket to done/newest-first, and
      preserve its ticket id and PR number.
    - If you can't find any tracking, say so and skip this step.
-6. **Commit the tracking update** if step 5 changed repo files
+8. **Commit the tracking update** if step 7 changed repo files
    (`chore: close <TICKET-ID>`), and push. Skip if nothing changed.
-7. **Report** one line: ticket, PR merged, what was updated.
+9. **Report** one line: ticket, PR merged, what was updated.
