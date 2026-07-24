@@ -27,9 +27,12 @@ report if a check fails.
 4. **Branch** off the up-to-date integration branch, following the repo's
    branch-naming convention (infer it from existing branches, e.g. an
    `ABC-123-short-desc` style) — or check out the existing branch if
-   resuming.
+   resuming. If the working tree is dirty, stop and ask what to do with the
+   changes (stash, commit elsewhere, abort) before switching branches.
 5. **Implement.** Read the ticket's description and acceptance criteria,
-   plan briefly, then build. Run the project's lint and tests locally as
+   plan briefly, then build. If the ticket is ambiguous or has no
+   acceptance criteria, state your interpretation and get my confirmation
+   before writing code. Run the project's lint and tests locally as
    you go; don't proceed with either failing.
 6. **Self-review.** Run the code-review skill on the changes and fix
    confirmed findings before opening the PR.
