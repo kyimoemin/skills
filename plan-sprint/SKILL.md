@@ -31,4 +31,5 @@ and stop.
    asked for), carrying forward the step 2 tickets.
 6. **Commit** the roll to the current branch, if it changed repo files
    (`chore: close <iteration>, open <next>`). Do not push without go-ahead.
-7. **Report** one line: iteration closed, next opened, carried tickets.
+7. **Report** one line: iteration closed, next opened, carried tickets — plus
+   a one-line retro: planned vs finished for the closed iteration.
