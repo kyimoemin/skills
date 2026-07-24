@@ -1,7 +1,7 @@
 ---
 description: Close the active iteration (sprint/milestone/cycle) and open the next — verify its tickets are done, archive it, and create the next one from the backlog against the current plan.
 disable-model-invocation: true
-allowed-tools: Bash(git *)
+allowed-tools: Bash(git *), Bash(gh *)
 ---
 
 # Plan / roll the iteration
@@ -20,9 +20,15 @@ and stop.
    before continuing.
 3. **Archive.** Move or mark the finished iteration as closed however the
    project does it (e.g. into an `archive/` dir, or closing the milestone).
-4. **Open the next iteration.** Create the successor. Pull its scope from the
-   top of the backlog, aligned to the current plan/roadmap if there is one.
-   Carry forward any tickets from step 2.
-5. **Commit** the roll to the current branch, if it changed repo files
+4. **Propose the next iteration's scope.** Draft the successor's ticket list
+   from the backlog, aligned to the current plan/roadmap if there is one:
+   - Size it to roughly what the just-closed iteration actually finished,
+     plus any tickets carried forward from step 2.
+   - Only pull items that are ready to start — unblocked, dependencies done.
+   - Present the proposed list with a one-line why per ticket, then wait for
+     my explicit go-ahead. Do not create anything yet.
+5. **Open the next iteration** as confirmed (adjusting for any changes I
+   asked for), carrying forward the step 2 tickets.
+6. **Commit** the roll to the current branch, if it changed repo files
    (`chore: close <iteration>, open <next>`). Do not push without go-ahead.
-6. **Report** one line: iteration closed, next opened, carried tickets.
+7. **Report** one line: iteration closed, next opened, carried tickets.
