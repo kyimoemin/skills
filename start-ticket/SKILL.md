@@ -15,17 +15,24 @@ report if a check fails.
    backlog/board/sprint files): only items ready to start — unblocked,
    dependencies done — ordered by the project's priority signal (labels,
    milestone, backlog order). Confirm the pick with me before starting.
-2. **Mark it in progress** wherever the project records ticket status, if
+2. **Check for existing work.** Search local and remote branches and open or
+   recently merged PRs for the ticket id, and check its tracker status. If
+   anything exists, report what you found — branch and its last-commit age,
+   PR state, tracker status — and ask whether to resume it, start fresh, or
+   stop; don't check out or create anything until I answer. If a merged PR
+   suggests the ticket is already done, say so and point at close-ticket.
+3. **Mark it in progress** wherever the project records ticket status, if
    anywhere (tracker transition, or moving it in board/backlog files). Skip
    with a note if there's no tracking.
-3. **Branch** off the up-to-date integration branch, following the repo's
+4. **Branch** off the up-to-date integration branch, following the repo's
    branch-naming convention (infer it from existing branches, e.g. an
-   `ABC-123-short-desc` style).
-4. **Implement.** Read the ticket's description and acceptance criteria,
+   `ABC-123-short-desc` style) — or check out the existing branch if
+   resuming.
+5. **Implement.** Read the ticket's description and acceptance criteria,
    plan briefly, then build. Run the project's lint and tests locally as
    you go; don't proceed with either failing.
-5. **Self-review.** Run the code-review skill on the changes and fix
+6. **Self-review.** Run the code-review skill on the changes and fix
    confirmed findings before opening the PR.
-6. **Open a PR** referencing the ticket, with a summary tied to the
+7. **Open a PR** referencing the ticket, with a summary tied to the
    acceptance criteria. Do not merge — that's close-ticket's job.
-7. **Report** one line: ticket, branch, PR link.
+8. **Report** one line: ticket, branch, PR link.
