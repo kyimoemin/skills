@@ -22,9 +22,10 @@ order; stop and report if any check fails.
    doesn't cover them) discover the project's lint/test commands (package
    scripts, Makefile, CONTRIBUTING) and run them locally on the PR branch;
    stop and report on failure.
-4. **Final review pass.** Run the code-review skill against the PR. If it
-   reports confirmed findings, stop and report them instead of proceeding —
-   the ticket isn't ready to close.
+4. **Post-approval commits.** Check whether any commits landed on the PR
+   after its last approving review (compare timestamps via `gh pr view` /
+   `gh api`). If so, stop and flag them — they're unreviewed; get them
+   re-reviewed or re-approved before closing.
 5. **Get go-ahead.** Merging requires my explicit confirmation. Ask, then
    wait. Never merge without it.
 6. **Merge** into the base branch once confirmed (`gh pr merge`), then delete
