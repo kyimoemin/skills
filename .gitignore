@@ -1,0 +1,6 @@
+# Ignore everything by default; track only my custom skills.
+/*
+!/.gitignore
+!/close-ticket/
+!/plan-sprint/
+!/standup/
