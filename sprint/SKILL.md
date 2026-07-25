@@ -30,7 +30,8 @@ Work through the tickets ONE AT A TIME, in the order given. Per ticket:
    and report to me. Do not attempt the ticket yourself, do not continue to
    the next ticket.
 4. **Independent review:** spawn a fresh reviewer subagent on the PR (by PR
-   number/branch — it fetches the diff itself). Instruct it to review for
+   number/branch — it fetches the diff itself), including the ticket's
+   acceptance criteria in its prompt. Instruct it to review for
    real bugs, security issues, and violations of the acceptance criteria,
    and to return only confirmed, actionable findings with file:line — no
    style nits, no diff dumps.
@@ -38,8 +39,9 @@ Work through the tickets ONE AT A TIME, in the order given. Per ticket:
    (SendMessage — its context is still alive), wait for its report, then
    re-review. Max 3 rounds; if findings remain after that, treat the ticket
    as `failed` → step 3.
-6. **Finalize:** message the implementer to verify the PR (CI green, no
-   post-review commits) and move its card to ready-to-merge.
+6. **Finalize:** message the implementer to verify the PR (CI green, head
+   commit unchanged since the final review round) and move its card to
+   ready-to-merge.
 7. **Record:** post one comment on the card with the implementer's report
    (branch, PR, review rounds). If the report listed a cross-cutting
    decision, append one line to the decisions log below.
