@@ -1,6 +1,6 @@
 ---
 description: Work through sprint tickets autonomously via ticket-implementer subagents — dispatch, independent review, fix loop, stop before merge. Merge only the tickets I explicitly approve at the end.
-argument-hint: [TICKET-IDs, space separated]
+argument-hint: "[TICKET-IDs space separated | all]"
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *)
 ---
@@ -16,9 +16,21 @@ hold is ticket metadata, subagent reports, and the decisions log.
 If no tickets were given: list the ready-to-start tickets from wherever this
 project tracks work (unblocked, dependencies done, in priority order) and
 stop for my confirmation. For unattended runs, ticket ids must be passed
-explicitly.
+explicitly — `all` does not count; a stale board could trigger a lot of
+unwanted work.
 
-Work through the tickets ONE AT A TIME, in the order given. Per ticket:
+If the argument is `all`: fetch the not-yet-started tickets in the current
+sprint (active sprint / the board list this project treats as the sprint —
+skip anything already in progress, in review, or done) and plan the
+execution order yourself — in-batch blockers first, then priority, then
+board order. Tickets blocked from outside the batch are excluded — list
+them as skipped with the reason. If nothing is ready, report that and stop.
+Otherwise report the planned order in one short list, then proceed
+immediately without waiting for confirmation (I can interrupt if the order
+looks wrong).
+
+Work through the tickets ONE AT A TIME, in the order given (or planned).
+Per ticket:
 
 1. **Read the ticket** from the tracker: title, description, acceptance
    criteria. This is your only tracker read; every card move for the ticket
