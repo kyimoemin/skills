@@ -30,7 +30,13 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
    - **Shipped recently:** latest done/changelog entries or closed issues.
    - **Next up:** 2–3 candidate items that are actually ready to start —
      unblocked, dependencies done, not overlapping with in-progress work.
-     Order by the project's priority signal (labels, milestone, backlog
-     order — in that preference). End with one recommended pick and a
-     one-line why.
+     If the project tracks a current sprint/milestone, pick ONLY from it —
+     never surface backlog items here. When no sprint ticket is left to
+     start, report the actual state instead of listing candidates: if
+     every ticket is done, say "all sprint tickets done" and suggest
+     running /plan-sprint to plan the next sprint; if some are still in
+     review, say those are in review — do not call the sprint done.
+     Otherwise order by the project's priority signal (labels, milestone,
+     backlog order — in that preference). End with one recommended pick
+     and a one-line why.
    - **Blockers:** anything flagged blocked or waiting on go-ahead.
