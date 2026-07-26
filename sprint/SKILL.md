@@ -1,5 +1,5 @@
 ---
-description: Work through sprint tickets autonomously via ticket-implementer subagents — dispatch, independent review, fix loop, stop before merge. Closing stays with close-ticket.
+description: Work through sprint tickets autonomously via ticket-implementer subagents — dispatch, independent review, fix loop, stop before merge. Merge only the tickets I explicitly approve at the end.
 argument-hint: [TICKET-IDs, space separated]
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *)
@@ -51,8 +51,25 @@ Work through the tickets ONE AT A TIME, in the order given. Per ticket:
 
 When all tickets are done (or the run stopped): report a summary — one line
 per ticket with PR url and state, and which PRs now await merge approval.
-Merging is NOT yours to do or to delegate: I review the PRs and run
-`/close-ticket` per ticket myself.
+Then STOP and wait for my merge instruction. Never merge without it.
+
+**Merge phase** — when I say "merge all" or name specific tickets, for each
+approved ticket in order:
+
+1. **Re-verify the PR:** `gh pr view` — CI green, mergeable, and the head
+   commit unchanged since the final review round. If any check fails, skip
+   this ticket, report why, and continue with the rest.
+2. **Merge** with `gh pr merge` (repo's default strategy) and delete the
+   ticket branch.
+3. **Close tracking via the implementer:** SendMessage the ticket's
+   implementer — "PR merged, close the ticket in tracking" — so the card
+   move stays with it. If its context is gone, do the tracking update
+   yourself as a fallback.
+4. **Report** one line: ticket, PR merged, tracking closed.
+
+Tickets I didn't name stay open — list them at the end as still awaiting my
+decision. (For tickets closed outside a sprint run, `/close-ticket` still
+exists.)
 
 Decisions log (starts empty, maintain it in this conversation; pass the
 whole log to every dispatch):
