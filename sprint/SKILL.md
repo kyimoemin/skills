@@ -25,7 +25,9 @@ Work through the tickets ONE AT A TIME, in the order given. Per ticket:
    belongs to its implementer.
 2. **Dispatch a `ticket-implementer` subagent** with: ticket id, full
    description and acceptance criteria, repo path, and all current entries
-   from the decisions log.
+   from the decisions log. Include the flag `no-pr-review` in the prompt —
+   it tells the implementer to skip self-reviewing its PR, since you run
+   the independent review yourself (step 4).
 3. **On return:** if status is `blocked` or `failed` → STOP the entire run
    and report to me. Do not attempt the ticket yourself, do not continue to
    the next ticket.
