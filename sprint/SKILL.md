@@ -128,7 +128,10 @@ Per ticket:
 5. **Fix loop:** if there are findings, send them to the SAME implementer
    (SendMessage — its context is still alive), wait for its report, then
    re-review. Max 3 rounds; if findings remain after that, treat the ticket
-   as `failed` → step 3.
+   as `failed` → step 3 — but first comment the unresolved findings on the
+   card yourself: this failure is your call, not the implementer's (its last
+   report was `complete`), so without your comment the card carries no
+   record of why the ticket stopped.
 6. **Finalize:** message the implementer to verify the PR (CI green, head
    commit unchanged since the final review round) and move its card to
    ready-to-merge. The card must NOT go to done here — nothing is merged
