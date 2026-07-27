@@ -76,25 +76,30 @@ Replayed, that says ABC-12 is finalized and awaiting merge, ABC-15 needs an
 answer from me before anything else happens, and ABC-9 was never started.
 `RUN COMPLETE` is the only hard terminator — never append past it. `RUN
 STOPPED` means the run halted for my input; once I answer (in-session, or
-"merge all" after a stop), keep appending to the same log. A log whose last
+"merge all" after a stop), keep appending to the same log. If my answer
+resolves a blocked ticket's question, append it as `ANSWER: <ticket>
+<answer>` before re-dispatching — the re-dispatch carries it (step 2);
+without it the implementer hits the same ambiguity and blocks again. A log whose last
 line is neither was interrupted mid-ticket. If a replay finds every ticket
 finalized or merged and none interrupted, nothing is wrong — the run is
 awaiting my merge decision; report the open PRs and wait.
 
-The log records what happened in this RUN. It does not mirror the board:
-ticket status lives on the card and is owned by the implementer. When you
-need a card's column, read it from the tracker — never cache it in the log,
-or the two will drift, which is the exact failure this split exists to
-prevent.
+The log records what happened in this RUN. The card column in a return
+line is a historical fact — where the implementer left the card — not the
+card's current state. Ticket status lives on the card and is owned by the
+implementer: when you need a card's current column, read it from the
+tracker — never treat a logged column as current, or the two will drift,
+which is the exact failure this split exists to prevent.
 
 Keep the log when the run finishes; it is the only record of planned-vs-
 finished and review effort, which the iteration retro needs.
 
 If no tickets were given: list the ready-to-start tickets from wherever this
 project tracks work (unblocked, dependencies done, in priority order) and
-stop for my confirmation. For unattended runs, ticket ids must be passed
-explicitly — `all` does not count; a stale board could trigger a lot of
-unwanted work.
+stop for my confirmation. An unattended invocation (cron, scheduled) must
+say `unattended` in its prompt and pass explicit ticket ids — if a run
+marked `unattended` passes `all` or nothing, stop and report instead of
+planning work; a stale board could trigger a lot of unwanted work.
 
 If the argument is `all`: fetch the not-yet-started tickets in the current
 sprint (active sprint / the board list this project treats as the sprint —
@@ -113,8 +118,9 @@ Per ticket:
    criteria. Read what you need, but never move a card or comment on one —
    the card and its trail belong to the implementers.
 2. **Dispatch a `ticket-implementer` subagent** with: ticket id, full
-   description and acceptance criteria, repo path, and all current decisions
-   entries read from the run log. The implementer runs the whole ticket
+   description and acceptance criteria, repo path, the tracker location you
+   read the ticket from, all current decisions entries read from the run
+   log, and any `ANSWER:` lines for this ticket. The implementer runs the whole ticket
    itself — implementation, its own independent review loop (fresh reviewer
    subagent per round, max 3 rounds, findings written to
    `.sprint/findings-<ticket>-r<n>.md`), and finalize. Nothing routes
