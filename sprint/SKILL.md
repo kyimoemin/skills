@@ -1,5 +1,5 @@
 ---
-description: Work through sprint tickets autonomously via ticket-implementer subagents — dispatch, independent review, fix loop, stop before merge. Merge only the tickets I explicitly approve at the end.
+description: Work through sprint tickets autonomously via ticket-implementer subagents — each implements, runs its own independent review loop, and finalizes; stop before merge. Merge only the tickets I explicitly approve at the end.
 argument-hint: "[TICKET-IDs space separated | all]"
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *)
@@ -10,9 +10,12 @@ allowed-tools: Bash(git *), Bash(gh *)
 Tickets: $ARGUMENTS
 
 You are a dispatcher. Do not read implementation files. Do not read diffs.
-Do not implement anything yourself. Your context must stay small — hold the
-ticket you are on and nothing more; the run log below is where run state
-lives, so re-read it rather than carrying it.
+Do not implement, fix, or resolve anything yourself — when work is stranded
+with no implementer to own it (an implementer died mid-ticket, a merge hits
+conflicts), dispatch a fresh ticket-implementer with a `resume:` line
+instead of touching files. Your context must stay small — hold the ticket
+you are on and nothing more; the run log below is where run state lives, so
+re-read it rather than carrying it.
 
 ## Run log
 
@@ -51,20 +54,18 @@ lose its own last line. A ticket's current state is whatever its last line
 says.
 
 Append a line when: the order is planned, a ticket is dispatched, an
-implementer returns, a review round finishes (with finding count), a ticket
-is finalized, a ticket is merged, the run stops. Plus every decisions-log
-entry (below). One line each — ticket id first, then what happened. No
-prose, no pasted reports.
+implementer returns (status, PR, review rounds, head SHA, card column,
+tracker location), a ticket is merged, tracking is closed, the run stops.
+Plus every decisions-log entry (below). One line each — ticket id first
+(`DECISION:` lines start with their prefix instead), then what happened.
+No prose, no pasted reports.
 
 Use this format, so any later run can replay a log it didn't write:
 
 ```
 ORDER: ABC-12, ABC-15, ABC-9
 ABC-12 dispatched
-ABC-12 returned complete, PR #204
-ABC-12 review round 1: 2 findings
-ABC-12 review round 2: clean
-ABC-12 finalized
+ABC-12 returned complete, PR #204, 2 review rounds, head a1b2c3f, ready-to-merge, tracker: Trello/Sprint Board
 DECISION: auth errors now surface as 401 not 500 (ABC-12)
 ABC-15 dispatched
 ABC-15 returned blocked: acceptance criteria don't cover expired tokens
@@ -73,8 +74,12 @@ RUN STOPPED at ABC-15
 
 Replayed, that says ABC-12 is finalized and awaiting merge, ABC-15 needs an
 answer from me before anything else happens, and ABC-9 was never started.
-`RUN STOPPED` / `RUN COMPLETE` are the last line of a log that ended
-deliberately; a log whose last line is neither was interrupted.
+`RUN COMPLETE` is the only hard terminator — never append past it. `RUN
+STOPPED` means the run halted for my input; once I answer (in-session, or
+"merge all" after a stop), keep appending to the same log. A log whose last
+line is neither was interrupted mid-ticket. If a replay finds every ticket
+finalized or merged and none interrupted, nothing is wrong — the run is
+awaiting my merge decision; report the open PRs and wait.
 
 The log records what happened in this RUN. It does not mirror the board:
 ticket status lives on the card and is owned by the implementer. When you
@@ -105,49 +110,33 @@ Work through the tickets ONE AT A TIME, in the order given (or planned).
 Per ticket:
 
 1. **Read the ticket** from the tracker: title, description, acceptance
-   criteria. Read what you need and comment where the steps below say to,
-   but never move a card — every card move belongs to its implementer. The
-   one exception is the merge-phase fallback below, when the implementer
-   that owned the card no longer exists to do it.
+   criteria. Read what you need, but never move a card or comment on one —
+   the card and its trail belong to the implementers.
 2. **Dispatch a `ticket-implementer` subagent** with: ticket id, full
    description and acceptance criteria, repo path, and all current decisions
-   entries read from the run log. Include the flag `no-pr-review` in the prompt —
-   it tells the implementer to skip self-reviewing its PR, since you run
-   the independent review yourself (step 4).
+   entries read from the run log. The implementer runs the whole ticket
+   itself — implementation, its own independent review loop (fresh reviewer
+   subagent per round, max 3 rounds, findings written to
+   `.sprint/findings-<ticket>-r<n>.md`), and finalize. Nothing routes
+   through you: you see only its final report.
 3. **On return:** if status is `blocked` or `failed` → append the reason and
    `RUN STOPPED at <ticket>` to the run log, then STOP the entire run and
    report to me. Do not attempt the ticket yourself, do not continue to the
-   next ticket. The implementer has already commented the question on its
-   card and left the card where it stood — don't move it.
-4. **Independent review:** spawn a fresh reviewer subagent on the PR (by PR
-   number/branch — it fetches the diff itself), including the ticket's
-   acceptance criteria in its prompt. Instruct it to review for
-   real bugs, security issues, and violations of the acceptance criteria,
-   and to return only confirmed, actionable findings with file:line — no
-   style nits, no diff dumps.
-5. **Fix loop:** if there are findings, send them to the SAME implementer
-   (SendMessage — its context is still alive), wait for its report, then
-   re-review. Max 3 rounds; if findings remain after that, treat the ticket
-   as `failed` → step 3 — but first comment the unresolved findings on the
-   card yourself: this failure is your call, not the implementer's (its last
-   report was `complete`), so without your comment the card carries no
-   record of why the ticket stopped.
-6. **Finalize:** message the implementer to verify the PR (CI green, head
-   commit unchanged since the final review round) and move its card to
-   ready-to-merge. The card must NOT go to done here — nothing is merged
-   yet. If the board has no ready-to-merge state, the card correctly stays
-   in progress; that is not a failure.
-7. **Record:** the implementer has already logged its branch, PR and fix
-   rounds on the card as it worked — don't repeat them. Comment only what
-   it couldn't know: the review verdict and round count. If the report
-   listed a cross-cutting decision, append it to the decisions log too.
-8. **Report to me** in one line — ticket, PR, review rounds, card column —
+   next ticket. The implementer has already recorded the question or the
+   unresolved findings on its card — don't move the card, don't repeat the
+   comment.
+4. **Record:** append the return line to the run log — status, PR, review
+   rounds, head SHA, card column, tracker location. If the report listed a
+   cross-cutting decision, append it to the decisions log too. The findings
+   files under `.sprint/` are the review audit trail; leave them for the
+   retro, don't read them now.
+5. **Report to me** in one line — ticket, PR, review rounds, card column —
    and move on.
 
-Note that an implementer reporting status `complete` means it finished the
-message you sent it, not that the ticket is finished. A ticket only reaches
-done after you merge its PR and the implementer confirms the close-tracking
-move.
+Note that an implementer reporting status `complete` means implemented,
+reviewed clean, and finalized — not that the ticket is finished. A ticket
+only reaches done after you merge its PR and a close-tracking dispatch
+confirms the card move.
 
 **Nothing lives only in this conversation.** A sprint can be interrupted at
 any point; what survives is the tracker and the run log. Before the final
@@ -156,23 +145,28 @@ summary, confirm no card is left in a state that contradicts its PR.
 When all tickets are done (or the run stopped): report a summary — one line
 per ticket with PR url, PR state, and the card's current column — and which
 PRs now await merge approval. Flag any card sitting in done whose PR you
-haven't merged; that's a tracking error to fix, not a finished ticket.
+haven't merged; that's a tracking error for me to resolve, not a finished
+ticket.
 Then STOP and wait for my merge instruction. Never merge without it.
 
 **Merge phase** — when I say "merge all" or name specific tickets, for each
 approved ticket in order:
 
 1. **Re-verify the PR:** `gh pr view` — CI green, mergeable, and the head
-   commit unchanged since the final review round. If any check fails, skip
-   this ticket, report why, and continue with the rest.
+   commit still the SHA recorded in the run log (nothing unreviewed pushed
+   on top). If the PR has conflicts, dispatch a fresh `ticket-implementer` —
+   a full dispatch as in per-ticket step 2, plus `resume: continue on <branch>, rebase
+   onto <base> and resolve conflicts` — its re-entry flow re-reviews and
+   re-finalizes the new head; never resolve conflicts yourself. For any
+   other failing check, skip this ticket, report why, and continue with the
+   rest.
 2. **Merge** with `gh pr merge` (repo's default strategy) and delete the
    ticket branch.
-3. **Close tracking via the implementer:** SendMessage the ticket's
-   implementer — "PR merged, close the ticket in tracking" — so the card
-   move stays with it. If its context is gone, do the tracking update
-   yourself as a fallback. On a resumed run this is the normal case, not an
-   edge one: implementers from the interrupted session no longer exist, so
-   expect to close their tickets yourself.
+3. **Close tracking:** dispatch a fresh `ticket-implementer` with a
+   `close-tracking` prompt — just the ticket id, PR, repo path, and the
+   tracker location from the run log. It needs nothing else; don't resend
+   the ticket body. If the return line recorded no tracker, skip this
+   dispatch and note it in the report — there is nothing to close.
 4. **Report** one line: ticket, PR merged, tracking closed — and append the
    merge to the run log.
 
