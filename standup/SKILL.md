@@ -1,5 +1,5 @@
 ---
-description: Report where the project stands — reads whatever the project uses for tracking plus current git state, then summarizes current focus, work in progress, what shipped, and recommends what to pick up next. Read-only.
+description: Report where the project stands — reads whatever the project uses for tracking plus current git state, then summarizes current focus, work in progress, what shipped, and tags every remaining ticket by who can act (dispatchable via /sprint, needs input, needs you, blocked). Read-only.
 allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git branch:*), Bash(git diff:*), Bash(git show:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh issue list:*), Bash(gh issue view:*)
 ---
 
@@ -28,15 +28,36 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
    - **In progress:** current branch → its ticket, uncommitted changes,
      open PR state.
    - **Shipped recently:** latest done/changelog entries or closed issues.
-   - **Next up:** 2–3 candidate items that are actually ready to start —
-     unblocked, dependencies done, not overlapping with in-progress work.
-     If the project tracks a current sprint/milestone, pick ONLY from it —
-     never surface backlog items here. When no sprint ticket is left to
-     start, report the actual state instead of listing candidates: if
-     every ticket is done, say "all sprint tickets done" and suggest
-     running /plan-sprint to plan the next sprint; if some are still in
-     review, say those are in review — do not call the sprint done.
-     Otherwise order by the project's priority signal (labels, milestone,
-     backlog order — in that preference). End with one recommended pick
-     and a one-line why.
-   - **Blockers:** anything flagged blocked or waiting on go-ahead.
+   - **Next up:** ALL not-done tickets, each tagged by who can act on it,
+     listed in this order:
+       - `[dispatchable]` — ready to hand to /sprint: unblocked, clear
+         acceptance criteria, pure repo work a ticket-implementer can take
+         end to end without a human.
+       - `[needs input: <what>]` — could be dispatched once one specific
+         gap is answered: ambiguous criteria, an undecided design/product
+         choice, a missing value. Name the gap in the tag.
+       - `[needs you: <action>]` — only the human can do it, /sprint
+         never can: merging an approved PR, account/access/credential
+         setup, decisions, anything outside the repo. Name the action in
+         the tag (e.g. `[needs you: merge PR #41]`).
+       - `[blocked: <on what>]` — waiting on another not-done ticket;
+         nobody can act yet.
+     Scope: if the project tracks a current sprint/milestone, list every
+     remaining ticket in it and nothing from the backlog; with no sprint,
+     fall back to the top ~5 by the project's priority signal (labels,
+     milestone, backlog order — in that preference). Don't repeat tickets
+     already shown under "In progress". If the list is empty — every
+     sprint ticket is done — say "all sprint tickets done" and suggest
+     running /plan-sprint to plan the next sprint.
+     End with two lines:
+       - `Ready to run: /sprint <dispatchable ids>` (or "nothing
+         dispatchable" and why).
+       - `To unlock more:` the minimal set of human actions that converts
+         [needs input]/[blocked] tickets into dispatchable ones (answer X,
+         merge PR #N, …). Omit if there's nothing to unlock.
+     Tags are judged from the ticket text alone — "looks dispatchable" is
+     not a guarantee; an implementer can still hit hidden ambiguity and
+     block mid-flight.
+   - **Blockers:** non-ticket blockers only — broken environment, CI down,
+     waiting on an external party. Ticket-level blocks already appear in
+     "Next up" as tags; don't repeat them here. Omit the section if empty.
