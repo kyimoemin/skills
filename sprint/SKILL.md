@@ -69,14 +69,20 @@ ABC-12 returned complete, PR #204, 2 review rounds, head a1b2c3f, ready-to-merge
 DECISION: auth errors now surface as 401 not 500 (ABC-12)
 ABC-15 dispatched
 ABC-15 returned blocked: acceptance criteria don't cover expired tokens
-RUN STOPPED at ABC-15
+ABC-15 parked
+ABC-9 dispatched
+ABC-9 returned complete, PR #207, 1 review round, head 9c4d1e2, ready-to-merge, tracker: Trello/Sprint Board
+RUN STOPPED awaiting: ABC-15
 ```
 
-Replayed, that says ABC-12 is finalized and awaiting merge, ABC-15 needs an
-answer from me before anything else happens, and ABC-9 was never started.
+Replayed, that says ABC-12 and ABC-9 are finalized and awaiting merge, and
+ABC-15 is parked on a question only I can answer.
 `RUN COMPLETE` is the only hard terminator — never append past it. `RUN
-STOPPED` means the run halted for my input; once I answer (in-session, or
-"merge all" after a stop), keep appending to the same log. If my answer
+STOPPED` means the run halted for my input — `at <ticket>` when it could
+not continue past that ticket, `awaiting: <tickets>` when everything
+runnable finished and only parked tickets remain. A ticket whose last line
+is `parked` is waiting on my answer, not abandoned. Once I answer
+(in-session, or "merge all" after a stop), keep appending to the same log. If my answer
 resolves a blocked ticket's question, append it as `ANSWER: <ticket>
 <answer>` before re-dispatching — the re-dispatch carries it (step 2);
 without it the implementer hits the same ambiguity and blocks again. A log whose last
@@ -121,16 +127,28 @@ Per ticket:
    description and acceptance criteria, repo path, the tracker location you
    read the ticket from, all current decisions entries read from the run
    log, and any `ANSWER:` lines for this ticket. The implementer runs the whole ticket
-   itself — implementation, its own independent review loop (fresh reviewer
-   subagent per round, max 3 rounds, findings written to
+   itself — implementation, its own independent review loop (fresh
+   read-only `ticket-reviewer` subagent per round, max 3 rounds, findings
+   written to
    `.sprint/findings-<ticket>-r<n>.md`), and finalize. Nothing routes
    through you: you see only its final report.
-3. **On return:** if status is `blocked` or `failed` → append the reason and
-   `RUN STOPPED at <ticket>` to the run log, then STOP the entire run and
-   report to me. Do not attempt the ticket yourself, do not continue to the
-   next ticket. The implementer has already recorded the question or the
-   unresolved findings on its card — don't move the card, don't repeat the
-   comment.
+3. **On return:** if status is `blocked` or `failed` → append the return
+   line with the reason, append `<ticket> parked`, and continue with the
+   next ticket that does not depend on it. Also park — a `<ticket> parked,
+   depends on <blocked-ticket>` line each, no dispatch — every remaining
+   ticket that depends on a parked one; dependencies come from the order
+   you planned, or from the tracker's blocker links when I named the
+   tickets explicitly. If nothing runnable remains, or you cannot tell
+   what depends on what, append `RUN STOPPED at <ticket>` and stop the
+   run. Never attempt a parked ticket yourself. The implementer has
+   already recorded the question or the unresolved findings on its card —
+   don't move the card, don't repeat the comment. Report the park to me in
+   one line (ticket, reason) and skip steps 4–5 for this ticket — its
+   return line is already logged; those steps are for `complete` returns.
+   Parked tickets surface together again in the final summary; when the
+   last runnable ticket has returned and any ticket is parked, append
+   `RUN STOPPED awaiting: <tickets>` — the run needs my answers before
+   those can re-dispatch.
 4. **Record:** append the return line to the run log — status, PR, review
    rounds, head SHA, card column, tracker location. If the report listed a
    cross-cutting decision, append it to the decisions log too. The findings
@@ -149,8 +167,9 @@ any point; what survives is the tracker and the run log. Before the final
 summary, confirm no card is left in a state that contradicts its PR.
 
 When all tickets are done (or the run stopped): report a summary — one line
-per ticket with PR url, PR state, and the card's current column — and which
-PRs now await merge approval. Flag any card sitting in done whose PR you
+per ticket with PR url, PR state, and the card's current column — which
+PRs now await merge approval, and every parked ticket with the question or
+reason it is waiting on (all blockers in one place, not drip-fed). Flag any card sitting in done whose PR you
 haven't merged; that's a tracking error for me to resolve, not a finished
 ticket.
 Then STOP and wait for my merge instruction. Never merge without it.
@@ -177,9 +196,10 @@ approved ticket in order:
    merge to the run log.
 
 Append `RUN COMPLETE` only when no ticket in this run is still awaiting a
-merge decision. If you merged a subset and the rest are open, the run is not
-finished — leave the log unterminated so a later run picks those tickets up
-instead of starting fresh on top of them.
+merge decision and none is still parked. If you merged a subset and the
+rest are open or parked, the run is not finished — leave the log
+unterminated so a later run picks those tickets up instead of starting
+fresh on top of them.
 
 Tickets I didn't name stay open — list them at the end as still awaiting my
 decision. (For tickets closed outside a sprint run, `/close-ticket` still
