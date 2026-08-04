@@ -1,6 +1,6 @@
 ---
-description: Report where the project stands — reads whatever the project uses for tracking plus current git state, then summarizes current focus, work in progress, what shipped, and tags every remaining ticket by who can act (dispatchable via /sprint, needs input, needs you, blocked). Read-only.
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git branch:*), Bash(git diff:*), Bash(git show:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh issue list:*), Bash(gh issue view:*)
+description: Report where the project stands — reads whatever the project uses for tracking plus current git state, then reports focus, recent ships, blockers, work in progress, and every remaining ticket grouped by who can act (dispatchable via /sprint, needs input, needs you, blocked), ending with a ready-to-run /sprint command. Read-only.
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git branch:*), Bash(git diff:*), Bash(git show:*), Bash(gh pr list:*), Bash(gh pr view:*), Bash(gh pr checks:*), Bash(gh issue list:*), Bash(gh issue view:*)
 ---
 
 # Standup — where are we?
@@ -18,11 +18,17 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
      "depends on #N" in issue bodies, checklist items pointing at other
      tickets — step 3 needs these to judge what's ready to start.
    - If you find no tracking, say so and rely on git state alone.
-2. **Git state.** Current branch, `git status`, last few commits on it, and
-   `gh pr list` for open PRs (skip PRs if there's no GitHub remote). Note each
-   PR's review state — approved-but-unmerged or changes-requested often _is_
-   the immediate next action. If tracking files and git disagree, trust git
-   for what's actually landed.
+2. **Git state.** Current branch, `git status`, last few commits — plus ALL
+   in-flight work, not just the checked-out branch: `git branch` for local
+   branches ahead of main, `gh pr list` for open PRs. Match branches and PRs
+   to tickets by the ticket id in the branch name or PR title. Note each
+   PR's review state and `gh pr checks` — approved-but-unmerged,
+   changes-requested, or red CI often _is_ the immediate next action.
+   Sources of truth: `gh` output is authoritative for remote/PR/merge state
+   (local refs may be stale; don't fetch — this skill is read-only); git
+   beats tracking files for what's actually landed. If a `gh` call fails
+   (no remote, unauthenticated, rate-limited), say "couldn't check
+   PRs/issues: <reason>" in the report rather than silently showing none.
 3. **Report** concisely, in this order — least actionable first, building
    to the call to action as the final lines of output. Render each of the
    five sections as a `##` heading, so they sit visually above the `###`
@@ -38,8 +44,9 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
      waiting on an external party. Ticket-level blocks belong under
      `### Blocked` in "Next up" below; don't repeat them here. Omit the
      section if empty.
-   - **In progress:** current branch → its ticket, uncommitted changes,
-     open PR state.
+   - **In progress:** every in-flight ticket — the checked-out branch plus
+     any other branch or open PR matched to a ticket in step 2 — with
+     uncommitted changes and PR/CI state per ticket.
    - **Next up:** ALL not-done tickets, grouped by who can act on them.
      Render each non-empty group as a `###` heading with a count —
      e.g. `### Dispatchable (3)` — and the group's tickets as a bullet
@@ -61,7 +68,10 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
      block mid-flight. Groups, in this order:
      - `### Dispatchable` — ready to hand to /sprint: unblocked, clear
        acceptance criteria, pure repo work a ticket-implementer can take
-       end to end without a human.
+       end to end without a human. A ticket that already has a branch or
+       open PR is NEVER Dispatchable — it goes under "In progress" (or
+       Needs you, if its PR is approved and waiting on merge); listing it
+       here would dispatch a second implementer onto in-flight work.
      - `### Needs input` — could be dispatched once one specific
        gap is answered: ambiguous criteria, an undecided design/product
        choice, a missing value. Name the gap on the ticket's line
