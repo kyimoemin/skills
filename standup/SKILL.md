@@ -23,16 +23,42 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
    PR's review state — approved-but-unmerged or changes-requested often _is_
    the immediate next action. If tracking files and git disagree, trust git
    for what's actually landed.
-3. **Report** concisely:
-   - **Focus:** active milestone/sprint/phase, if the project tracks one.
+3. **Report** concisely, in this order — least actionable first, building
+   to the call to action as the final lines of output. Render each of the
+   five sections as a `##` heading, so they sit visually above the `###`
+   groups inside "Next up". Every ticket line, in any section, uses one
+   shape — `- **<id>** <title>` with the tracker's native id (`#42`,
+   `T-42`, …) — plus the group's `— gap:` / `— action:` / blocked-on
+   suffix where the group requires one.
+   - **Focus:** active milestone/sprint/phase, if the project tracks one;
+     include progress when countable, e.g. `Sprint 4 — 5/9 done`.
+   - **Shipped recently:** latest done/changelog entries or closed
+     issues — cap at 5, one line each.
+   - **Blockers:** non-ticket blockers only — broken environment, CI down,
+     waiting on an external party. Ticket-level blocks belong under
+     `### Blocked` in "Next up" below; don't repeat them here. Omit the
+     section if empty.
    - **In progress:** current branch → its ticket, uncommitted changes,
      open PR state.
-   - **Shipped recently:** latest done/changelog entries or closed issues.
    - **Next up:** ALL not-done tickets, grouped by who can act on them.
-     Render each non-empty group as a markdown section — a `###` heading,
-     the group's tickets as a bullet list under it, and `---` between
-     sections. Never inline the category as a tag on the ticket line;
-     the heading IS the category. Groups, in this order:
+     Render each non-empty group as a `###` heading with a count —
+     e.g. `### Dispatchable (3)` — and the group's tickets as a bullet
+     list under it. No `---` separators between groups; the headings
+     carry the structure. Never inline the category as a tag on the
+     ticket line; the heading IS the category. Omit empty groups
+     entirely.
+
+     Scope: if the project tracks a current sprint/milestone, list every
+     remaining ticket in it and nothing from the backlog; with no sprint,
+     fall back to the top ~5 by the project's priority signal (labels,
+     milestone, backlog order — in that preference). Don't repeat tickets
+     already shown under "In progress". If the list is empty — every
+     sprint ticket is done — say "all sprint tickets done" and suggest
+     running /plan-sprint to plan the next sprint.
+
+     Groups are judged from the ticket text alone — "looks dispatchable" is
+     not a guarantee; an implementer can still hit hidden ambiguity and
+     block mid-flight. Groups, in this order:
      - `### Dispatchable` — ready to hand to /sprint: unblocked, clear
        acceptance criteria, pure repo work a ticket-implementer can take
        end to end without a human.
@@ -46,23 +72,11 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
        the ticket's line (e.g. `— action: merge PR #41`).
      - `### Blocked` — waiting on another not-done ticket; nobody can
        act yet. Name what it's blocked on.
-       Omit empty groups entirely.
-       Scope: if the project tracks a current sprint/milestone, list every
-       remaining ticket in it and nothing from the backlog; with no sprint,
-       fall back to the top ~5 by the project's priority signal (labels,
-       milestone, backlog order — in that preference). Don't repeat tickets
-       already shown under "In progress". If the list is empty — every
-       sprint ticket is done — say "all sprint tickets done" and suggest
-       running /plan-sprint to plan the next sprint.
-       End with two lines:
-     - `Ready to run: /sprint <dispatchable ids>` (or "nothing
+
+     End the report with two lines:
+     - `Ready to run:` followed by the `/sprint <dispatchable ids>`
+       command in backticks so it's cleanly copyable (or "nothing
        dispatchable" and why).
      - `To unlock more:` the minimal set of human actions that converts
        Needs input/Blocked tickets into dispatchable ones (answer X,
        merge PR #N, …). Omit if there's nothing to unlock.
-       Groups are judged from the ticket text alone — "looks dispatchable" is
-       not a guarantee; an implementer can still hit hidden ambiguity and
-       block mid-flight.
-   - **Blockers:** non-ticket blockers only — broken environment, CI down,
-     waiting on an external party. Ticket-level blocks already appear in
-     "Next up" as tags; don't repeat them here. Omit the section if empty.
