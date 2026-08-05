@@ -12,8 +12,9 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
    - An issue tracker (`gh issue list`, or a Jira/Linear board if configured) —
      open items, recently closed.
    - Repo status files — a sprint/backlog/board dir, `TODO`, `CHANGELOG`, or
-     `ROADMAP` markdown. Treat the backlog/open list as the source of truth and
-     the done/changelog as recently shipped.
+     `ROADMAP` markdown. Treat the backlog/open list as the source of truth
+     for what work exists and the done/changelog as recently shipped —
+     Next-up's reporting scope is decided in step 3, not here.
    - While reading, note dependency/blocked signals: `blocked` labels,
      "depends on #N" in issue bodies, checklist items pointing at other
      tickets — step 3 needs these to judge what's ready to start.
@@ -47,7 +48,8 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
    - **In progress:** every in-flight ticket — the checked-out branch plus
      any other branch or open PR matched to a ticket in step 2 — with
      uncommitted changes and PR/CI state per ticket.
-   - **Next up:** ALL not-done tickets, grouped by who can act on them.
+   - **Next up:** the not-done tickets in scope (see Scope below), grouped
+     by who can act on them.
      Render each non-empty group as a `###` heading with a count —
      e.g. `### Dispatchable (3)` — and the group's tickets as a bullet
      list under it. No `---` separators between groups; the headings
@@ -55,13 +57,20 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
      ticket line; the heading IS the category. Omit empty groups
      entirely.
 
-     Scope: if the project tracks a current sprint/milestone, list every
-     remaining ticket in it and nothing from the backlog; with no sprint,
-     fall back to the top ~5 by the project's priority signal (labels,
-     milestone, backlog order — in that preference). Don't repeat tickets
-     already shown under "In progress". If the list is empty — every
-     sprint ticket is done — say "all sprint tickets done" and suggest
-     running /plan-sprint to plan the next sprint.
+     Scope — this is a hard boundary, not a preference:
+     - If the project tracks a current sprint/milestone, list every
+       remaining ticket in it and NOTHING from the backlog — even if
+       project instructions name a backlog/tracker file as the place to
+       pull work from (that governs picking up work, not standup's
+       reporting scope). A sprint counts as current until it is closed or
+       archived; all-rows-done does not make it "no sprint".
+     - If the current sprint has no not-done tickets, say "all sprint
+       tickets done" and suggest running /plan-sprint to plan the next
+       sprint. Stop there — do NOT fall back to the backlog.
+     - Only when no sprint is tracked at all, fall back to the top ~5
+       backlog tickets by the project's priority signal (labels,
+       milestone, backlog order — in that preference).
+     - Don't repeat tickets already shown under "In progress".
 
      Groups are judged from the ticket text alone — "looks dispatchable" is
      not a guarantee; an implementer can still hit hidden ambiguity and
