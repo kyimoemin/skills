@@ -1,6 +1,7 @@
 # Ignore everything by default; track only my custom skills.
 /*
 !/.gitignore
+!/README.md
 !/add-ticket/
 !/close-ticket/
 !/plan-sprint/
