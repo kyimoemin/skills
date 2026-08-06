@@ -27,12 +27,16 @@ product decision gets settled here, not discovered mid-sprint.
 4. **Draft the design.** Short and decision-dense, not a spec: what changes
    and where, each key decision with the chosen option and why (alternatives
    one line each), what is explicitly out of scope, and open questions —
-   which you resolve with me now, so none leak into tickets. Show it to me
-   and iterate until I approve.
+   which you resolve with me now, so none leak into tickets. Include a
+   mermaid diagram when the design has structure prose carries poorly — a
+   new data flow, state machine, or component interaction — and skip it for
+   flat changes; a two-ticket feature doesn't need a box-and-arrow. Show it
+   to me and iterate until I approve.
 5. **Where the design lives.** Discover the project's convention (a docs/
    design dir, tracker epic description, ADRs). If there is none, put the
    relevant design context into each ticket's body instead — don't invent a
-   docs structure on your own.
+   docs structure on your own. The diagram belongs to the design doc only:
+   when the design lands in ticket bodies, drop it — tickets stay prose.
 6. **Split into tickets.** Each one PR-sized, independently implementable,
    with clear acceptance criteria and no hidden decisions. Record
    dependencies between them the way this project does (`blocked` label,
