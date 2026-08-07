@@ -1,9 +1,9 @@
 # Dev-workflow suite
 
-Twelve Claude Code skills (this repo) plus three subagents
+Eleven Claude Code skills (this repo) plus three subagents
 ([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run a
-full software lifecycle: idea → design → tickets → sprint → QA → release →
-retro. Every skill discovers the project's tracker and conventions at
+full software lifecycle: idea → product brief → design → tickets → sprint →
+QA → release → retro. Every skill discovers the project's tracker and conventions at
 runtime, so there are no per-repo variants. Two rules hold everywhere:
 **nothing consequential happens without an explicit go-ahead** (filing,
 merging, deploying), and **nothing lives only in the conversation** — durable
@@ -14,9 +14,8 @@ state is the tracker plus `.sprint/` files.
 ```mermaid
 flowchart TB
     subgraph pm ["Plan (PM layer)"]
-        roadmap["/roadmap\ndirection: now / next / later"]
-        groom["/groom-backlog\nkeep · fix · merge · kill · promote"]
-        architect["/architect\nidea → design → tickets"]
+        shape["/shape\nidea → product brief (PO POV)"]
+        architect["/architect\nbrief → design → tickets"]
         plansprint["/plan-sprint\nclose iteration, open next"]
     end
 
@@ -38,12 +37,10 @@ flowchart TB
     tracker[("tracker / backlog\ncards: implementer is sole writer")]
     dotsprint[(".sprint/  (local-only)\nrun log · findings · QA results")]
 
-    idea([feature idea]) --> architect
+    idea([feature idea]) --> shape
+    shape -- "product brief (md)" --> architect
     architect -- "tickets + deps" --> tracker
-    roadmap --> groom
-    groom -- "promotes, gaps" --> tracker
     tracker --> plansprint
-    roadmap -.-> plansprint
     plansprint -- "next iteration" --> sprint
     sprint -- "1 ticket each" --> impl
     impl <-- "findings ↔ fixes" --> reviewer
@@ -59,7 +56,6 @@ flowchart TB
     dotsprint --> retro
     tracker --> retro
     retro -- "process changes → tickets" --> tracker
-    retro -.-> roadmap
     standup -.-> tracker
 ```
 
@@ -70,9 +66,8 @@ nodes are subagents — everything else is a skill you invoke.
 
 | Layer | Skill / agent | In one line |
 |---|---|---|
-| Plan | `/roadmap` | Maintain direction (now/next/later, done-conditions); plan-sprint and groom read it |
-| Plan | `/groom-backlog` | Judge every backlog ticket with evidence; apply only approved verdicts |
-| Plan | `/architect` | Feature idea → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
+| Plan | `/shape` | Feature idea → product brief from the PO's seat: users, implied scope, MVP line — no code, no tickets |
+| Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
 | Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets |
 | Build | `/sprint` | Dispatch one `ticket-implementer` per ticket; park blockers; merge only what you name |
 | Build | `ticket-implementer` | One ticket end to end: branch, code, PR, own review loop, finalize; never merges |
@@ -95,8 +90,11 @@ nodes are subagents — everything else is a skill you invoke.
   findings files, QA results. `/deploy` reads it as the QA gate; `/retro`
   is its final consumer. It's local-only — QA gates and retros only work on
   the machine the sprint ran on.
+- **The product brief** (md file written by /shape) is the durable product
+  contract: /architect reads it as settled scope and inherits its
+  out-of-scope list, so product decisions are made once, in one place.
 - **Dependency links on tickets** (labels, "depends on #N", tracker links)
-  are written by architect/groom and read by standup, plan-sprint, and
+  are written by architect and read by standup, plan-sprint, and
   sprint's ordering.
 - **Humans stay in the loop at exactly three points:** answering blocked
   tickets' questions, merging PRs, and the deploy go-ahead. Everything else

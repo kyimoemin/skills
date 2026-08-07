@@ -1,6 +1,6 @@
 ---
 description: Turn a feature idea into a design and ready-to-dispatch tickets — explore the codebase, settle the key decisions in a short design, split it into tickets with acceptance criteria and dependency links, then file them on go-ahead.
-argument-hint: [feature idea]
+argument-hint: [feature idea | path to product brief]
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *)
 ---
@@ -12,8 +12,13 @@ report if a check fails. The output feeds the rest of the pipeline: tickets
 must be implementable by a ticket-implementer without a human — every
 product decision gets settled here, not discovered mid-sprint.
 
-1. **Understand the ask.** Start from $ARGUMENTS if given, else ask. Pin
-   down scope and the done-condition with one or two clarifying questions if
+1. **Understand the ask.** If $ARGUMENTS is a path to an existing file,
+   it's a product brief from /shape: read it and treat its decisions as
+   settled — scope, done-condition, and acceptance come from the brief, not
+   from re-asking. If the brief lists open product decisions, stop and
+   resolve them with me before designing; never decide them silently.
+   Otherwise start from $ARGUMENTS as a raw idea (or ask), and pin down
+   scope and the done-condition with one or two clarifying questions if
    unclear — don't design against a guess.
 2. **Check it isn't already tracked.** Search the project's tracker (discover
    it — issue tracker or backlog/board files) for existing tickets or an
@@ -26,7 +31,8 @@ product decision gets settled here, not discovered mid-sprint.
    footnote.
 4. **Draft the design.** Short and decision-dense, not a spec: what changes
    and where, each key decision with the chosen option and why (alternatives
-   one line each), what is explicitly out of scope, and open questions —
+   one line each), what is explicitly out of scope (inherit the brief's
+   out-of-scope list when one exists — don't reinvent it), and open questions —
    which you resolve with me now, so none leak into tickets. Include a
    mermaid diagram when the design has structure prose carries poorly — a
    new data flow, state machine, or component interaction — and skip it for
