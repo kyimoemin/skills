@@ -59,9 +59,9 @@ tickets, not a re-bootstrap. This skill is greenfield-only.
 5. **Initialize the tracker and iteration structure** as decided in step 2
    (e.g. the board files plus a first iteration, or labels + a milestone).
    This is what /plan-sprint rolls; without it, it stops.
-6. **Commit the product docs** — the vision doc and any briefs — into
-   `docs/product/` (move them there if written elsewhere); the durable
-   product contract lives in the repo.
+6. **Commit the product docs** — the vision doc at `docs/product/` and
+   any briefs under `docs/product/briefs/` (move them there if written
+   elsewhere); the durable product contract lives in the repo.
 7. **Local commits only, then ask.** `git init` and local commits are
    yours; creating a remote (`gh repo create`) and the first push are
    outward-facing — propose, and do them only on my explicit go-ahead.

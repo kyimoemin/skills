@@ -14,7 +14,8 @@ tickets, no technical decisions; those belong to /architect.
 
 1. **Start from the idea.** Use $ARGUMENTS if given. With no arguments
    and a vision doc present (`docs/product/vision.md`), propose the next
-   feature from its build order that has no brief in `docs/product/` yet,
+   feature from its build order that has no brief in
+   `docs/product/briefs/` yet,
    and confirm before shaping. With neither, ask for the feature idea in
    one sentence. If someone brings a whole *app* idea and there's no
    vision doc, stop and point at /vision — which features exist at all is
@@ -52,7 +53,9 @@ tickets, no technical decisions; those belong to /architect.
 
    Show it to me and iterate until I approve.
 5. **Write the file.** Discover the project's docs convention (a docs/ or
-   product dir); if there is none, write `docs/product/<feature>.md`.
+   product dir); if there is none, write
+   `docs/product/briefs/<feature>.md` — briefs live one level below the
+   vision doc, so vision.md stays alone and findable at the top.
    Don't invent a deeper structure. Do not commit without go-ahead.
 6. **Report:** the brief's path, any open product decisions left, and the
    ready-to-run next command: `/architect <path-to-brief>` (if the repo
