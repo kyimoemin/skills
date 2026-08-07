@@ -1,9 +1,9 @@
 # Dev-workflow suite
 
-Eleven Claude Code skills (this repo) plus three subagents
+Twelve Claude Code skills (this repo) plus three subagents
 ([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run a
-full software lifecycle: idea → product brief → design → tickets → sprint →
-QA → release → retro. Every skill discovers the project's tracker and conventions at
+full software lifecycle: idea → product brief → (new project: bootstrap) →
+design → tickets → sprint → QA → release → retro. Every skill discovers the project's tracker and conventions at
 runtime, so there are no per-repo variants. Two rules hold everywhere:
 **nothing consequential happens without an explicit go-ahead** (filing,
 merging, deploying), and **nothing lives only in the conversation** — durable
@@ -15,6 +15,7 @@ state is the tracker plus `.sprint/` files.
 flowchart TB
     subgraph pm ["Plan (PM layer)"]
         shape["/shape\nidea → product brief (PO POV)"]
+        bootstrap["/bootstrap\nonce: repo, stack, tracker, CI"]
         architect["/architect\nbrief → design → tickets"]
         plansprint["/plan-sprint\nclose iteration, open next"]
     end
@@ -39,6 +40,8 @@ flowchart TB
 
     idea([feature idea]) --> shape
     shape -- "product brief (md)" --> architect
+    shape -- "new project" --> bootstrap
+    bootstrap -- "repo + conventions" --> architect
     architect -- "tickets + deps" --> tracker
     tracker --> plansprint
     plansprint -- "next iteration" --> sprint
@@ -67,6 +70,7 @@ nodes are subagents — everything else is a skill you invoke.
 | Layer | Skill / agent | In one line |
 |---|---|---|
 | Plan | `/shape` | Feature idea → product brief from the PO's seat: users, implied scope, MVP line — no code, no tickets |
+| Plan | `/bootstrap` | Once per project: brief → stack/tracker/hosting decisions, minimal scaffold with lint/test/CI green |
 | Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
 | Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets |
 | Build | `/sprint` | Dispatch one `ticket-implementer` per ticket; park blockers; merge only what you name |
@@ -93,6 +97,11 @@ nodes are subagents — everything else is a skill you invoke.
 - **The product brief** (md file written by /shape) is the durable product
   contract: /architect reads it as settled scope and inherits its
   out-of-scope list, so product decisions are made once, in one place.
+- **Bootstrap lays down what everyone else discovers.** Every skill finds
+  the project's conventions at runtime — tracker, lint/test commands,
+  how-to-run, iteration structure. On a greenfield project /bootstrap
+  creates exactly that set, once; after it, no other skill needs a
+  greenfield mode.
 - **Dependency links on tickets** (labels, "depends on #N", tracker links)
   are written by architect and read by standup, plan-sprint, and
   sprint's ordering.

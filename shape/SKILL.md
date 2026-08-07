@@ -13,7 +13,9 @@ learn what the product is, nothing more. No source files, no tracker, no
 tickets, no technical decisions; those belong to /architect.
 
 1. **Start from the idea.** Use $ARGUMENTS if given, else ask for the
-   feature idea in one sentence.
+   feature idea in one sentence. A brand-new app counts: its v1/MVP is
+   shaped like any feature, just with the sharpest possible MVP line —
+   the brief then feeds /bootstrap instead of /architect.
 2. **Think like a PO, out loud.** Before asking anything, lay out what this
    feature *implies* beyond what was said: who actually needs it and for
    what job, the parts users will expect that weren't mentioned, the edge
@@ -44,7 +46,10 @@ tickets, no technical decisions; those belong to /architect.
 
    Show it to me and iterate until I approve.
 5. **Write the file.** Discover the project's docs convention (a docs/ or
-   product dir); if there is none, write `docs/product/<feature>.md`. Don't
-   invent a deeper structure. Do not commit without go-ahead.
+   product dir); if there is none — including when there's no repo at all
+   yet — write `docs/product/<feature>.md` in the working directory;
+   /bootstrap inits the repo around it. Don't invent a deeper structure.
+   Do not commit without go-ahead.
 6. **Report:** the brief's path, any open product decisions left, and the
-   ready-to-run next command: `/architect <path-to-brief>`.
+   ready-to-run next command — `/architect <path-to-brief>`, or
+   `/bootstrap <path-to-brief>` when there's no project yet.

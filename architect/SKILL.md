@@ -8,7 +8,9 @@ allowed-tools: Bash(git *), Bash(gh *)
 # Architect
 
 Run to take a feature from idea to filed tickets. Follow in order; stop and
-report if a check fails. The output feeds the rest of the pipeline: tickets
+report if a check fails. If there's no repo here, or an empty one with no
+conventions to discover, stop and point at /bootstrap — architect designs
+into an existing foundation, it doesn't lay one. The output feeds the rest of the pipeline: tickets
 must be implementable by a ticket-implementer without a human — every
 product decision gets settled here, not discovered mid-sprint.
 
