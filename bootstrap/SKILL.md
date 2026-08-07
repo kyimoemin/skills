@@ -29,15 +29,25 @@ tickets, not a re-bootstrap. This skill is greenfield-only.
    expensive to reverse, so they get the same dialogue treatment /shape
    gives product decisions. Propose a recommendation each, with a one-line
    why, and wait for my picks:
-   - **Stack** — language, framework, package manager; steer by what the
-     brief's product actually needs, not fashion.
+   - **Stack** — language, framework, package manager. Ask first whether
+     I already have a stack I prefer or know well — on a project I'll be
+     reading every PR of, familiarity beats marginal fit. Then present
+     the consequential picks as separate decisions with real named
+     alternatives (e.g. React vs Svelte vs no framework), one-line why
+     each, steered by what the product needs, not fashion. Never bundle
+     the whole stack inside a single "recommended" option — that's
+     choosing for me while appearing to ask.
    - **Tracker** — issue tracker (e.g. GitHub issues + milestones) or
      board files in the repo; this is what every skill will discover.
    - **Hosting/release target** — where v1 will run, even if the answer
      is "local only for now"; /deploy will discover whatever this sets up.
-3. **Scaffold — deliberately minimal.** A skeleton that proves the
-   pipeline, not a head start on the product: it compiles/runs, has lint
-   and test commands wired with one passing test, and CI running both.
+3. **Scaffold — deliberately minimal.** Start from the ecosystem's
+   official scaffolder when one exists (`pnpm create vite`, `cargo new`,
+   `create-next-app`, …) and trim from there — hand-rolling the configs a
+   scaffolder generates invites drift and version-mismatch bugs the
+   ecosystem has already solved. What it must prove: the pipeline, not a
+   head start on the product — it compiles/runs, has lint and test
+   commands wired with one passing test, and CI running both.
    Zero product features — every real behavior flows through tickets so
    it gets review and QA. This is also the one place test and CI
    infrastructure gets created; implementers are forbidden from
