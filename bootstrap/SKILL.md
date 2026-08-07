@@ -12,8 +12,8 @@ project's conventions at runtime — your job is to make that discovery
 succeed: after you, /architect finds a codebase and a tracker,
 ticket-implementers find lint and test commands, qa-verifier finds how
 to run the app, /deploy finds a release mechanism (or a ticket saying
-there isn't one yet) — and /plan-sprint finds an iteration structure,
-if this project opted into one.
+there isn't one yet) — and /plan-sprint finds an iteration structure
+to roll.
 
 **Guard:** if the working directory is already a non-empty repo, stop and
 say so — missing pieces in an existing project (tests, CI, tracker) are
@@ -58,16 +58,25 @@ tickets, not a re-bootstrap. This skill is greenfield-only.
    verbatim to launch the app, and a run step that needs tribal knowledge
    breaks /qa.
 5. **Initialize the tracker** as decided in step 2. For board files, the
-   default shape is iteration-less and keeps each ticket's definition in
-   exactly one immutable place: `board/tickets/T-<n>.md` holds the full
-   ticket (body, acceptance criteria, and a status line — the status
-   line is the only part that ever changes); `board/backlog.md` is an
-   ordered list of references; `board/done.md` lists shipped refs with
-   PR numbers. Scheduling and shipping move references, never bodies —
-   /qa reads a ticket's acceptance criteria *after* its PR merges, so
-   criteria must stay findable forever. Set up iterations (sprint files
-   for /plan-sprint to roll) only if I asked for them in step 2 — and
-   never pre-open one aimed at specific work; filling iterations is
+   default shape is sprint-based and splits definition from status:
+   `board/tickets/T-<n>.md` holds the full ticket — body and acceptance
+   criteria, immutable once filed, plus an append-only Trail section
+   where whoever works the ticket records progress lines (branch, PR,
+   review rounds, blocks). `board/backlog.md` is the ordered list of
+   unscheduled ticket refs. `board/sprint-NN.md` is the live board for
+   one iteration — dates, goal, and one reference line per committed
+   ticket carrying its status (todo / in progress / in review / done;
+   in review = PR finalized, awaiting human review/merge — this is the
+   ready-to-merge state implementers look for; done carries the PR
+   number), plus a retro section /retro fills at close. Closed sprints
+   move to `board/archive/`, so the live board never grows. A ticket's
+   status lives in exactly one place at a time — in backlog it is
+   unscheduled, its sprint ref line carries it while committed, an
+   archived sprint means shipped — so it can never drift. Moves carry
+   references, never bodies — /qa reads a ticket's acceptance criteria
+   *after* its PR merges, so criteria must stay findable forever. Lay
+   down the structure and a sprint template, but never open a sprint
+   aimed at specific work; opening and rolling sprints is
    /plan-sprint's call, not yours.
 6. **Commit the product docs** — the vision doc at `docs/product/` and
    any briefs under `docs/product/briefs/` (move them there if written

@@ -13,7 +13,9 @@ and adapt these steps to it. If the project has no iteration concept, say so
 and stop.
 
 1. **Identify the active iteration.** The current/highest-numbered sprint,
-   cycle, or open milestone.
+   cycle, or open milestone. If the structure exists but no iteration has
+   ever been opened (fresh bootstrap: a sprint dir with only a template),
+   skip steps 2–3 and open the first iteration via steps 4–5.
 2. **Verify closure.** Every ticket in it should be done (in the project's
    done list / closed in the tracker). List any still open — if there are
    unfinished tickets, ask whether to carry them forward or hold the roll
