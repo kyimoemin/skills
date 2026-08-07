@@ -62,6 +62,9 @@ product decision gets settled here, not discovered mid-sprint.
    project tracks iterations — never yours. If repo files changed,
    commit (`chore: add <feature> tickets`) and push; if the current branch
    isn't the integration branch, ask first.
-8. **Report:** design location, ticket ids with dependency order, and a
-   ready-to-run `/sprint <ids>` line for the ones that are immediately
-   dispatchable.
+8. **Report:** design location, ticket ids with dependency order, and the
+   ready-to-run next command. Where the project tracks iterations that is
+   `/plan-sprint` — tickets must be committed into a sprint before
+   dispatch, or an implementer has no legal place to record status;
+   only on an iteration-less tracker is it `/sprint <ids>` for the
+   immediately dispatchable ones.
