@@ -1,5 +1,5 @@
 ---
-description: One-time greenfield setup — turn an approved product vision (or brief) into a repo where every other skill's conventions exist to be discovered: stack and tracker settled with the user, minimal running scaffold with lint/test/CI green, README with how-to-run, iteration structure, brief committed. Runs once per project.
+description: One-time greenfield setup — turn an approved product vision (or brief) into a repo where every other skill's conventions exist to be discovered: stack and tracker settled with the user, minimal running scaffold with lint/test/CI green, README with how-to-run, tracker initialized, product docs committed. Runs once per project.
 argument-hint: [path to vision doc | product brief]
 disable-model-invocation: true
 ---
@@ -10,9 +10,10 @@ Run once, on a new project, to turn an approved product brief into a repo
 the rest of the suite can work in. Every downstream skill discovers the
 project's conventions at runtime — your job is to make that discovery
 succeed: after you, /architect finds a codebase and a tracker,
-/plan-sprint finds an iteration structure, ticket-implementers find lint
-and test commands, qa-verifier finds how to run the app, and /deploy
-finds a release mechanism (or a ticket saying there isn't one yet).
+ticket-implementers find lint and test commands, qa-verifier finds how
+to run the app, /deploy finds a release mechanism (or a ticket saying
+there isn't one yet) — and /plan-sprint finds an iteration structure,
+if this project opted into one.
 
 **Guard:** if the working directory is already a non-empty repo, stop and
 say so — missing pieces in an existing project (tests, CI, tracker) are
@@ -56,9 +57,18 @@ tickets, not a re-bootstrap. This skill is greenfield-only.
    it as an instruction, not documentation: qa-verifier will follow it
    verbatim to launch the app, and a run step that needs tribal knowledge
    breaks /qa.
-5. **Initialize the tracker and iteration structure** as decided in step 2
-   (e.g. the board files plus a first iteration, or labels + a milestone).
-   This is what /plan-sprint rolls; without it, it stops.
+5. **Initialize the tracker** as decided in step 2. For board files, the
+   default shape is iteration-less and keeps each ticket's definition in
+   exactly one immutable place: `board/tickets/T-<n>.md` holds the full
+   ticket (body, acceptance criteria, and a status line — the status
+   line is the only part that ever changes); `board/backlog.md` is an
+   ordered list of references; `board/done.md` lists shipped refs with
+   PR numbers. Scheduling and shipping move references, never bodies —
+   /qa reads a ticket's acceptance criteria *after* its PR merges, so
+   criteria must stay findable forever. Set up iterations (sprint files
+   for /plan-sprint to roll) only if I asked for them in step 2 — and
+   never pre-open one aimed at specific work; filling iterations is
+   /plan-sprint's call, not yours.
 6. **Commit the product docs** — the vision doc at `docs/product/` and
    any briefs under `docs/product/briefs/` (move them there if written
    elsewhere); the durable product contract lives in the repo.

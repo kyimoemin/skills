@@ -48,6 +48,7 @@ flowchart TB
     architect -- "tickets + deps" --> tracker
     tracker --> plansprint
     plansprint -- "next iteration" --> sprint
+    tracker -- "no iterations: /sprint <ids>" --> sprint
     sprint -- "1 ticket each" --> impl
     impl <-- "findings ↔ fixes" --> reviewer
     reviewer -- "findings files" --> dotsprint
@@ -76,7 +77,7 @@ nodes are subagents — everything else is a skill you invoke.
 | Plan | `/shape` | Feature idea → product brief from the PO's seat: users, implied scope, MVP line — no code, no tickets |
 | Plan | `/bootstrap` | Once per project: vision → stack/tracker/hosting decisions, minimal scaffold with lint/test/CI green |
 | Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
-| Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets |
+| Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets (optional — only for projects that track iterations) |
 | Build | `/sprint` | Dispatch one `ticket-implementer` per ticket; park blockers; merge only what you name |
 | Build | `ticket-implementer` | One ticket end to end: branch, code + tests, PR, own review loop, finalize; never merges |
 | Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria/test coverage; one parseable return line |

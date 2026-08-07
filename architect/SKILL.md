@@ -41,10 +41,15 @@ product decision gets settled here, not discovered mid-sprint.
    flat changes; a two-ticket feature doesn't need a box-and-arrow. Show it
    to me and iterate until I approve.
 5. **Where the design lives.** Discover the project's convention (a docs/
-   design dir, tracker epic description, ADRs). If there is none, put the
-   relevant design context into each ticket's body instead — don't invent a
-   docs structure on your own. The diagram belongs to the design doc only:
-   when the design lands in ticket bodies, drop it — tickets stay prose.
+   design dir, tracker epic description, ADRs); if there is none, write
+   `docs/design/<feature>.md`, mirroring the brief's basename. The doc is
+   a decision record for whoever inherits the repo: it keeps the diagram
+   and the alternatives, not just the outcome, and it records the design
+   as decided — later features supersede it with their own docs rather
+   than editing history. Tickets still carry the design context each one
+   needs (an implementer reads only its ticket) plus a link to the doc;
+   the doc complements tickets, it doesn't replace their
+   self-sufficiency. Diagrams live in the doc only — tickets stay prose.
 6. **Split into tickets.** Each one PR-sized, independently implementable,
    with clear acceptance criteria and no hidden decisions. Record
    dependencies between them the way this project does (`blocked` label,
@@ -52,7 +57,9 @@ product decision gets settled here, not discovered mid-sprint.
    standup and sprint read to judge dispatch order. Show me the ticket list
    with a one-line why per ticket. File only on my explicit go-ahead.
 7. **File them** following the tracker's conventions (id scheme, title
-   style, labels — read existing tickets to match). If repo files changed,
+   style, labels — read existing tickets to match), into the backlog:
+   pulling tickets into an iteration is /plan-sprint's job where the
+   project tracks iterations — never yours. If repo files changed,
    commit (`chore: add <feature> tickets`) and push; if the current branch
    isn't the integration branch, ask first.
 8. **Report:** design location, ticket ids with dependency order, and a
