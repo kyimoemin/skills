@@ -70,8 +70,8 @@ nodes are subagents — everything else is a skill you invoke.
 | Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
 | Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets |
 | Build | `/sprint` | Dispatch one `ticket-implementer` per ticket; park blockers; merge only what you name |
-| Build | `ticket-implementer` | One ticket end to end: branch, code, PR, own review loop, finalize; never merges |
-| Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria; one parseable return line |
+| Build | `ticket-implementer` | One ticket end to end: branch, code + tests, PR, own review loop, finalize; never merges |
+| Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria/test coverage; one parseable return line |
 | Ship | `/qa` | One `qa-verifier` per merged ticket; failures become bug tickets on go-ahead |
 | Ship | `qa-verifier` | Proves shipped behavior in the running app; code reading doesn't count |
 | Ship | `/deploy` | Discover the release mechanism; CI + QA gates; ship on explicit go-ahead; verify live |
