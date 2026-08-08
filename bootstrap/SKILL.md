@@ -64,14 +64,16 @@ tickets, not a re-bootstrap. This skill is greenfield-only.
    where whoever works the ticket records progress lines (branch, PR,
    review rounds, blocks). `board/backlog.md` is the ordered list of
    unscheduled ticket refs. `board/sprint-NN.md` is the live board for
-   one iteration — dates, goal, and one reference line per committed
-   ticket carrying its status (todo / in progress / in review / done;
-   in review = PR finalized, awaiting human review/merge — this is the
-   ready-to-merge state implementers look for; done carries the PR
-   number), plus a retro section /retro fills at close. Closed sprints
+   one iteration — dates, goal, and a tickets table, one row per
+   committed ticket with columns ID / Title / Status / PR and no
+   free-text columns (details stay in the ticket file). Status is todo /
+   in progress / in review / done; in review = PR finalized, awaiting
+   human review/merge — this is the ready-to-merge state implementers
+   look for; the PR cell is filled at in review and kept at done. Plus
+   a retro section /retro fills at close. Closed sprints
    move to `board/archive/`, so the live board never grows. A ticket's
    status lives in exactly one place at a time — in backlog it is
-   unscheduled, its sprint ref line carries it while committed, an
+   unscheduled, its sprint table row carries it while committed, an
    archived sprint means shipped — so it can never drift. Moves carry
    references, never bodies — /qa reads a ticket's acceptance criteria
    *after* its PR merges, so criteria must stay findable forever. Lay

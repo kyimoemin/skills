@@ -26,7 +26,9 @@ and stop.
    from the backlog, aligned to the current plan/roadmap if there is one:
    - Size it to roughly what the just-closed iteration actually finished,
      plus any tickets carried forward from step 2.
-   - Only pull items that are ready to start — unblocked, dependencies done.
+   - Only pull items that are ready to start — unblocked, dependencies
+     done, or depending only on tickets in this same proposal (an
+     in-sprint chain constrains dispatch order, not membership).
    - Present the proposed list with a one-line why per ticket, then wait for
      my explicit go-ahead. Do not create anything yet.
 5. **Open the next iteration** as confirmed (adjusting for any changes I
