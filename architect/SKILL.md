@@ -17,7 +17,9 @@ product decision gets settled here, not discovered mid-sprint.
 1. **Understand the ask.** If $ARGUMENTS is a path to an existing file,
    it's a product brief from /shape: read it and treat its decisions as
    settled — scope, done-condition, and acceptance come from the brief, not
-   from re-asking. If the brief lists open product decisions, stop and
+   from re-asking. If a UI design doc exists for the feature
+   (`docs/design/ui/<same-basename>.md`), its screens and interactions
+   are settled too — design the structure that serves them. If the brief lists open product decisions, stop and
    resolve them with me before designing; never decide them silently.
    Otherwise start from $ARGUMENTS as a raw idea (or ask), and pin down
    scope and the done-condition with one or two clarifying questions if
@@ -47,7 +49,9 @@ product decision gets settled here, not discovered mid-sprint.
    and the alternatives, not just the outcome, and it records the design
    as decided — later features supersede it with their own docs rather
    than editing history. Tickets still carry the design context each one
-   needs (an implementer reads only its ticket) plus a link to the doc;
+   needs (an implementer reads only its ticket) plus a link to the doc —
+   and to the feature's UI design doc (`docs/design/ui/<feature>.md`)
+   from every ticket that builds screens it covers;
    the doc complements tickets, it doesn't replace their
    self-sufficiency. Diagrams live in the doc only — tickets stay prose.
 6. **Split into tickets.** Each one PR-sized, independently implementable,

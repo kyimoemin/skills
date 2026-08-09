@@ -1,9 +1,10 @@
 # Dev-workflow suite
 
-Thirteen Claude Code skills (this repo) plus three subagents
+Fourteen Claude Code skills (this repo) plus three subagents
 ([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run a
 full software lifecycle: app idea → vision → (new project: bootstrap) →
-feature brief → design → tickets → sprint → QA → release → retro. Every skill discovers the project's tracker and conventions at
+feature brief → UI design → technical design → tickets → sprint → QA →
+release → retro. Every skill discovers the project's tracker and conventions at
 runtime, so there are no per-repo variants. Two rules hold everywhere:
 **nothing consequential happens without an explicit go-ahead** (filing,
 merging, deploying), and **nothing lives only in the conversation** — durable
@@ -16,6 +17,7 @@ flowchart TB
     subgraph pm ["Plan (PM layer)"]
         vision["/vision\nonce: app idea → feature map + MVP cut"]
         shape["/shape\nfeature → product brief (PO POV)"]
+        designui["/design-ui\ndesign language (once) + feature screens"]
         bootstrap["/bootstrap\nonce: repo, stack, tracker, CI"]
         architect["/architect\nbrief → design → tickets"]
         plansprint["/plan-sprint\nclose iteration, open next"]
@@ -44,7 +46,10 @@ flowchart TB
     vision -- "feature map, build order" --> shape
     vision -- "new project" --> bootstrap
     bootstrap -- "repo + conventions" --> shape
-    shape -- "product brief (md)" --> architect
+    shape -- "product brief (md)" --> designui
+    designui -- "screens + design language (md)" --> architect
+    shape -- "no UI surface" --> architect
+    designui -. "design-language.md" .-> impl
     architect -- "tickets + deps" --> tracker
     tracker --> plansprint
     plansprint -- "next iteration" --> sprint
@@ -75,9 +80,10 @@ nodes are subagents — everything else is a skill you invoke.
 |---|---|---|
 | Plan | `/vision` | Once per app: idea → feature map, MVP cut, build order — the queue /shape pulls from |
 | Plan | `/shape` | Feature idea → product brief from the PO's seat: users, implied scope, MVP line — no code, no tickets |
+| Plan | `/design-ui` | App-wide design language (once) + per-feature screens/states from the brief — the UI docs implementers follow |
 | Plan | `/bootstrap` | Once per project: vision → stack/tracker/hosting decisions, minimal scaffold with lint/test/CI green |
 | Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
-| Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets (optional — only for projects that track iterations) |
+| Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets (default board is sprint-based — tickets must land in a sprint before dispatch) |
 | Build | `/sprint` | Dispatch one `ticket-implementer` per ticket; park blockers; merge only what you name |
 | Build | `ticket-implementer` | One ticket end to end: branch, code + tests, PR, own review loop, finalize; never merges |
 | Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria/test coverage; one parseable return line |
@@ -107,6 +113,11 @@ nodes are subagents — everything else is a skill you invoke.
 - **The product brief** (md file written by /shape) is the durable product
   contract: /architect reads it as settled scope and inherits its
   out-of-scope list, so product decisions are made once, in one place.
+- **The UI docs** (written by /design-ui under `docs/design/ui/`) split by
+  scope: `design-language.md` is a repo convention binding every
+  implementer's user-facing work — like the tests-follow-the-repo's-lead
+  rule, whether or not a ticket links it — while per-feature screen docs
+  are linked from the tickets that build them, by /architect.
 - **Bootstrap lays down what everyone else discovers.** Every skill finds
   the project's conventions at runtime — tracker, lint/test commands,
   how-to-run, iteration structure. On a greenfield project /bootstrap
