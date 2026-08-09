@@ -56,8 +56,13 @@ tickets, no technical decisions; those belong to /architect.
    product dir); if there is none, write
    `docs/product/briefs/<feature>.md` — briefs live one level below the
    vision doc, so vision.md stays alone and findable at the top.
-   Don't invent a deeper structure. Do not commit without go-ahead.
+   Don't invent a deeper structure. If shaping changed the vision's
+   feature map or build order (a feature pulled forward, split, or
+   resequenced), offer to update vision.md to match — with approval,
+   never silently — so the vision stays the authority a bare /shape
+   proposes from. Do not commit without go-ahead.
 6. **Report:** the brief's path, any open product decisions left, and the
-   ready-to-run next command: `/architect <path-to-brief>` (if the repo
-   isn't bootstrapped yet, `/bootstrap docs/product/vision.md` comes
-   first).
+   ready-to-run next command: `/design-ui <path-to-brief>` when the
+   feature has a user-facing surface, `/architect <path-to-brief>` when
+   it doesn't (if the repo isn't bootstrapped yet,
+   `/bootstrap docs/product/vision.md` comes first).
