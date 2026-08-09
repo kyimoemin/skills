@@ -1,7 +1,6 @@
 ---
 description: Shape a feature idea from a product owner's POV — drive the product conversation (who it's for, what it implies, where the MVP line sits), then write a product brief the /architect skill consumes. No code, no tickets.
 argument-hint: [feature idea]
-disable-model-invocation: true
 ---
 
 # Shape

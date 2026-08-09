@@ -1,7 +1,6 @@
 ---
 description: Mine an iteration's audit trail — sprint run logs, review findings, QA results, tracker history — into a short retro: planned vs finished, review effort and recurring finding patterns, QA escapes, blocked-ticket causes, and one to three concrete process changes.
 argument-hint: "[sprint-id]"
-disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *)
 ---
 

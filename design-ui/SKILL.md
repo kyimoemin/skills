@@ -1,7 +1,6 @@
 ---
 description: Decide how the product looks and behaves on screen — establish the app's design language once, then design each feature's screens from its brief. Writes the UI docs implementers follow; runs between /shape and /architect. No code, no data models.
 argument-hint: [path to product brief]
-disable-model-invocation: true
 allowed-tools: Bash(git *)
 ---
 
