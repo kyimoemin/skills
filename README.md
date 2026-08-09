@@ -1,6 +1,6 @@
 # Dev-workflow suite
 
-Fourteen Claude Code skills (this repo) plus three subagents
+Fifteen Claude Code skills (this repo) plus three subagents
 ([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run a
 full software lifecycle: app idea → vision → (new project: bootstrap) →
 feature brief → UI design → technical design → tickets → sprint → QA →
@@ -74,6 +74,11 @@ flowchart TB
 Solid arrows are data handoffs; dashed are read-only reads. Double-bordered
 nodes are subagents — everything else is a skill you invoke.
 
+`/autopilot` drives this loop one feature at a time so you don't invoke each
+skill yourself: it runs the stages in order, propagates every stage's
+questions to you, and logs progress to `.sprint/autopilot-<feature>.md` so an
+interrupted run resumes where it stopped.
+
 ## Who does what
 
 | Layer | Skill / agent | In one line |
@@ -93,6 +98,7 @@ nodes are subagents — everything else is a skill you invoke.
 | Learn | `/retro` | Turn run logs, findings, and QA results into 1–3 evidenced process changes |
 | Anytime | `/standup` | Read-only: where things stand, grouped by who can act, ends with a `/sprint` line |
 | Anytime | `/add-ticket` `/start-ticket` `/close-ticket` | One-off capture / interactive single ticket / land a PR outside a sprint run |
+| Drive | `/autopilot` | Run the whole per-feature loop (shape → … → retro) hands-free; stage questions propagate to you; `merge=auto\|manual` flag; resumable via `.sprint/autopilot-<feature>.md` progress log |
 
 ## The handshakes that hold it together
 
@@ -126,6 +132,10 @@ nodes are subagents — everything else is a skill you invoke.
 - **Dependency links on tickets** (labels, "depends on #N", tracker links)
   are written by architect and read by standup, plan-sprint, and
   sprint's ordering.
-- **Humans stay in the loop at exactly three points:** answering blocked
-  tickets' questions, merging PRs, and the deploy go-ahead. Everything else
-  is dispatchable.
+- **Humans stay in the loop at exactly three points once tickets exist:**
+  answering blocked tickets' questions, merging PRs, and the deploy
+  go-ahead — the PM stages upstream keep their own conversation and
+  go-ahead gates (shaping, design approval, filing tickets, sprint
+  scope). Everything else is dispatchable. `/autopilot merge=auto` can
+  delegate the middle one (clean, CI-green merges only); the rest are
+  never automated.

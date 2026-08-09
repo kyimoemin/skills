@@ -58,6 +58,26 @@ highest-numbered one:
   a `RUN COMPLETE`; a log with a terminator in the middle can't be replayed.
 - **No file** → create it, and write the `ORDER:` line as its first entry.
 
+The startup decision tree (structure only — the bullets above are the
+rulebook):
+
+```mermaid
+flowchart TB
+    look([highest-numbered log for this sprint]) --> exists{exists?}
+    exists -- "no" --> create["create log, write ORDER: line"]
+    exists -- "yes" --> done{"ends in RUN COMPLETE?"}
+    done -- "yes" --> next["run closed: new log at next -N suffix"]
+    done -- "no" --> mine{"ORDER: shares a ticket
+with this run's request?"}
+    mine -- "no" --> foreign["different run's log:
+leave it, new log at next suffix"]
+    mine -- "yes" --> replay["replay: skip finalized/merged,
+verify interrupted tickets via git/gh"]
+    replay --> ask{{"per interrupted ticket:
+continue on branch, or fresh?"}}
+    ask --> dispatch["dispatch carrying the resume: line"]
+```
+
 **Append, never rewrite.** Each entry is one line added at the end. A
 rewrite that dies mid-write can truncate the whole log; an append can only
 lose its own last line. A ticket's current state is whatever its last line
@@ -140,7 +160,7 @@ Per ticket:
    itself — implementation, its own independent review loop (fresh
    read-only `ticket-reviewer` subagent per round, max 3 rounds, findings
    written to
-   `.sprint/findings-<ticket>-r<n>.md`), and finalize. Nothing routes
+   `.sprint/findings-<ticket>-r<N>.md`), and finalize. Nothing routes
    through you: you see only its final report.
 3. **On return:** if status is `blocked` or `failed` → append the return
    line with the reason, append `<ticket> parked`, and continue with the
@@ -192,7 +212,9 @@ approved ticket in order:
    on top). If the PR has conflicts, dispatch a fresh `ticket-implementer` —
    a full dispatch as in per-ticket step 2, plus `resume: continue on <branch>, rebase
    onto <base> and resolve conflicts` — its re-entry flow re-reviews and
-   re-finalizes the new head; never resolve conflicts yourself. For any
+   re-finalizes the new head; append its return line (new head SHA
+   included) to the run log, then re-verify from the top. Never resolve
+   conflicts yourself. For any
    other failing check, skip this ticket, report why, and continue with the
    rest.
 2. **Merge** with `gh pr merge` (repo's default strategy) and delete the

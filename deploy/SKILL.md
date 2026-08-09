@@ -25,8 +25,12 @@ re-runs after a failed attempt.
    - CI green on the head commit.
    - Approved-but-unmerged PRs: flag them — am I shipping without them
      intentionally?
-   - QA: look for `.sprint/qa-*.md` results covering the tickets merged
-     since the last release. Failed QA → stop and report. No QA results →
+   - QA: for each ticket merged since the last release, look for its
+     results file — exactly `.sprint/qa-<ticket>.md` or a numeric-suffix
+     rerun `qa-<ticket>-<N>.md`, never a looser prefix match (same rule
+     as /qa: with bare numeric ids a `qa-1*` glob swallows ticket 12's
+     results into ticket 1). Take the highest-suffix file as current.
+     Failed or blocked QA → stop and report. No QA results →
      say so and ask whether to run /qa first or ship without it; don't
      silently skip the gate.
 3. **Version & changelog.** Infer the versioning scheme from tags and the

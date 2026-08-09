@@ -11,7 +11,9 @@ other skills leave behind: run logs and findings files exist FOR this — read
 them here, not during the sprint.
 
 1. **Identify the iteration.** $1 as the sprint id if given, else the
-   highest-numbered `.sprint/<sprint-id>*.md` run log. No `.sprint/` dir or
+   highest-numbered `.sprint/<sprint-id>*.md` run log — sprint run logs
+   only; `.sprint/autopilot-*.md` relay logs are not run logs, never
+   pick one. No `.sprint/` dir or
    no run logs → say so and stop; there is nothing to retro. Note that
    `.sprint/` is local-only — a retro only works on the machine the sprint
    ran on.
@@ -29,6 +31,9 @@ them here, not during the sprint.
      bugs that survived a clean review.
    - **Tracker state** for the iteration's tickets: which actually reached
      done.
+   - **Autopilot relay log** (`.sprint/autopilot-<feature>.md`), if the
+     iteration ran under /autopilot: the stage timeline and gate answers —
+     context for where the cycle stalled, not a run log.
 3. **Analyze** — numbers first, then causes:
    - Planned vs finished, and where the gap went (parked on questions,
      failed reviews, never dispatched).

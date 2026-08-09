@@ -13,8 +13,8 @@ tickets, no technical decisions; those belong to /architect.
 
 1. **Start from the idea.** Use $ARGUMENTS if given. With no arguments
    and a vision doc present (`docs/product/vision.md`), propose the next
-   feature from its build order that has no brief in
-   `docs/product/briefs/` yet,
+   feature from its build order that has no brief yet (in the project's
+   briefs location — default `docs/product/briefs/`),
    and confirm before shaping. With neither, ask for the feature idea in
    one sentence. If someone brings a whole *app* idea and there's no
    vision doc, stop and point at /vision — which features exist at all is
@@ -39,6 +39,9 @@ tickets, no technical decisions; those belong to /architect.
    content:
    - **Problem** — the user problem, one short paragraph.
    - **Users** — who it's for; who it's explicitly not for.
+   - **Surface** — one line: `user-facing` (has screens; /design-ui runs
+     next) or `headless` (no UI; straight to /architect). Downstream
+     tooling reads this line rather than inferring from prose.
    - **User stories** — "As a …, I can …, so that …"; MVP stories only.
    - **In scope** — what ships in this slice.
    - **Out of scope** — what's deliberately excluded, each with a one-line
@@ -61,7 +64,8 @@ tickets, no technical decisions; those belong to /architect.
    never silently — so the vision stays the authority a bare /shape
    proposes from. Do not commit without go-ahead.
 6. **Report:** the brief's path, any open product decisions left, and the
-   ready-to-run next command: `/design-ui <path-to-brief>` when the
-   feature has a user-facing surface, `/architect <path-to-brief>` when
-   it doesn't (if the repo isn't bootstrapped yet,
+   ready-to-run next command per the brief's Surface line:
+   `/design-ui <path-to-brief>` when the
+   feature is user-facing, `/architect <path-to-brief>` when
+   it isn't (if the repo isn't bootstrapped yet,
    `/bootstrap docs/product/vision.md` comes first).

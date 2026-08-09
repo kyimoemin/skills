@@ -23,11 +23,14 @@ unmerged work.
   (`gh pr list --search`); skip and report the ones that don't.
 - **`recent` or no argument** → find merged-but-not-yet-QA'd work: merged
   PRs since the last release tag (or the last ~10 if the project doesn't
-  tag), matched to tickets by id in branch or PR title, minus tickets that
-  already have a result file — exactly `.sprint/qa-<ticket>.md` or a
+  tag), matched to tickets by id in branch or PR title, minus tickets
+  whose highest-suffix result file records a completed run — result
+  files are exactly `.sprint/qa-<ticket>.md` or a
   numeric-suffix rerun `qa-<ticket>-<N>.md`, never a looser prefix match
   (with bare numeric ids, a `qa-1*` glob would wrongly swallow ticket 1
-  because ticket 12 was QA'd). Show me the list and confirm before
+  because ticket 12 was QA'd). A file whose latest entry is `blocked:`
+  is an open question, not a result — its ticket stays in scope, listed
+  with that question. Show me the list and confirm before
   dispatching.
 
 Read each ticket's acceptance criteria from the tracker (discover it —
@@ -52,9 +55,14 @@ subagent, synchronously, with: ticket id, acceptance criteria verbatim,
 repo path, merged PR number, and any how-to-run notes from the project's
 docs if you already know them. Nothing else — it discovers the rest itself.
 
-On return, record the one-line result and move on. `blocked` → note the
-question, continue with the remaining tickets, and surface all blocked ones
-together at the end. If the return says `→ inline`, write the entries
+On return, record the one-line result and move on. `blocked` → write the
+question to the next free results file (`.sprint/qa-<ticket>.md`, or the
+next `-<N>` suffix if earlier runs exist) as a `blocked: <question>`
+entry — a blocked verification must survive this session, and a blocked
+results file is a non-pass, so /deploy's gate fails closed on it. Then
+continue with the remaining tickets and surface all blocked ones together
+at the end; once answered, the re-run's results land in the next suffix
+file per the rerun convention. If the return says `→ inline`, write the entries
 yourself to the next free results file — `.sprint/qa-<ticket>.md`, or
 `qa-<ticket>-2.md` and so on if earlier runs exist — never overwriting a
 previous run; the suffixed files are the QA audit trail.
@@ -73,7 +81,8 @@ branch isn't the integration branch.
 
 ## Report
 
-One line per ticket — id, `pass`/`fail`/`blocked`/`skipped`, and the
+One line per ticket — id, `pass` / `pass with unverifiable` / `fail` /
+`blocked` / `skipped`, and the
 results path or reason. Then: bugs filed (ids), criteria needing human
 eyes (from `unverifiable` entries), and every blocked verification with
 its question — all blockers in one place. If everything passed, say so
