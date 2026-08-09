@@ -25,6 +25,16 @@ It is local-only: add `.sprint/` to `.git/info/exclude` if it isn't there —
 NOT to `.gitignore`, which is a tracked file and would either dirty the tree
 (blocking every implementer) or drop an unrelated change into someone's PR.
 
+**Check the `.sprint` write permission before the first dispatch.** Every
+reviewer writes a round file under `.sprint/`, deep inside a dispatch —
+where a permission prompt stalls the run, and an unattended run auto-denies
+it and loses the audit trail. So read `~/.claude/settings.json` and look for
+`Edit(**/.sprint/**)` in `permissions.allow`. If it isn't there, say so in
+one line before you dispatch anything and let me decide whether to add it —
+it widens your own permissions, so it is mine to grant, not yours to take.
+Note for me if I ask: a `Write(.sprint/**)` rule is never consulted; only
+`Edit(...)` path rules are, and they cover writes.
+
 Before anything else, look for this sprint's run logs and take the
 highest-numbered one:
 

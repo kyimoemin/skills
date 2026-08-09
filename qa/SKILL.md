@@ -41,6 +41,11 @@ Before the first dispatch, make sure `.sprint/` is in `.git/info/exclude`
 tracked-file change would dirty the tree, tripping the verifier's own
 clean-tree check and the /deploy gate).
 
+Check the write permission too: every verifier writes its results under
+`.sprint/`, so if `Edit(**/.sprint/**)` is not in `permissions.allow` in
+`~/.claude/settings.json`, each dispatch stalls on a prompt. Say so in one
+line and let me decide whether to add it — don't add it yourself.
+
 Work through the tickets ONE AT A TIME — verifiers run the app, and two at
 once fight over ports and state. Per ticket, dispatch a `qa-verifier`
 subagent, synchronously, with: ticket id, acceptance criteria verbatim,
