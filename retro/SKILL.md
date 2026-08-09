@@ -22,7 +22,7 @@ them here, not during the sprint.
      the `ORDER:` line (planned), return lines (finished, review rounds,
      PRs), `parked` lines and their reasons, `DECISION:` and `ANSWER:`
      lines, `RUN STOPPED` markers.
-   - **Findings files** `.sprint/findings-<ticket>-r<N>.md` for the
+   - **Review round files** `.sprint/review-<ticket>-r<N>.md` for the
      iteration's tickets: what the reviewer caught, per ticket and round.
    - **QA results** if /qa ran — exactly `.sprint/qa-<ticket>.md` and
      numeric-suffix reruns `qa-<ticket>-<N>.md`, never a looser prefix

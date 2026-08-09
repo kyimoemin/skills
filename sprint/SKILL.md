@@ -158,9 +158,9 @@ Per ticket:
    read the ticket from, all current decisions entries read from the run
    log, and any `ANSWER:` lines for this ticket. The implementer runs the whole ticket
    itself — implementation, its own independent review loop (fresh
-   read-only `ticket-reviewer` subagent per round, max 3 rounds, findings
-   written to
-   `.sprint/findings-<ticket>-r<N>.md`), and finalize. Nothing routes
+   read-only `ticket-reviewer` subagent per round, max 3 rounds, round
+   files written to
+   `.sprint/review-<ticket>-r<N>.md`), and finalize. Nothing routes
    through you: you see only its final report.
 3. **On return:** if status is `blocked` or `failed` → append the return
    line with the reason, append `<ticket> parked`, and continue with the
@@ -181,7 +181,7 @@ Per ticket:
    those can re-dispatch.
 4. **Record:** append the return line to the run log — status, PR, review
    rounds, head SHA, card column, tracker location. If the report listed a
-   cross-cutting decision, append it to the decisions log too. The findings
+   cross-cutting decision, append it to the decisions log too. The round
    files under `.sprint/` are the review audit trail; leave them for the
    retro, don't read them now.
 5. **Report to me** in one line — ticket, PR, review rounds, card column —
