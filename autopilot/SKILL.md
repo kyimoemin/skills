@@ -38,6 +38,29 @@ assume, or default an answer to keep the loop moving. The stops named in
 the loop below are the big ones, not the full list — stages stop
 wherever their own skill says to stop, and you honor all of them.
 
+**Present my stops as dialogs.** Whenever the loop stops for my input
+and the decision has enumerable options — a stage's relayed questions,
+the merge-mode ask, the bug fold choice, the close-out question — ask
+via the AskUserQuestion tool, not prose. This *satisfies* "verbatim",
+it doesn't bend it: the `question` field carries the stage's question
+verbatim, each option's `description` carries the stage's own
+rationale for that choice, and only the short option labels are
+compressed. Options come from the stage's question — its proposal
+(first, marked "(Recommended)") and the alternatives it names — never
+ones you invent; inventing options is judgment leaking into the relay.
+Use multiSelect where choices aren't exclusive, batch up to four
+decisions per dialog, and run consecutive dialogs when there are more.
+A dialog must be self-sufficient — I may read it before any prose — so
+the stage's reasoning lives in the option descriptions, not around
+them. A question with no enumerable options (a naming ask, free-form
+feedback) goes to me as plain text; the built-in "Other" option
+already covers free-text answers on any dialog. My picks are answers
+like any other: record them in the same log lines dialog-free answers
+would use (this log's `ANSWER:` lines, the sprint run log's `ANSWER:`
+lines) and relay them back to the stage agent unchanged — a pick that
+diverges from the stage's proposal is the stage's to resolve, not
+yours.
+
 ## Context economy
 
 You are the longest-lived context in the suite — one run spans a whole
@@ -321,6 +344,9 @@ improvise past a broken stage.
 
 At every stop and at close-out, one short block: which stage the loop is
 at, what's waiting on me (all of it, in one place — questions, PRs,
-gates), and what happens next once I answer. A new session picking up
+gates), and what happens next once I answer. Enumerable decisions among
+the waiting items go through dialogs (see the dialog rule); the block
+still names everything waiting so nothing lives only in a dismissed
+dialog. A new session picking up
 the log should need nothing from this conversation — if that's ever not
 true, the log is missing a line, and that's the bug to fix first.
