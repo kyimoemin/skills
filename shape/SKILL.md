@@ -53,9 +53,14 @@ tickets, no technical decisions; those belong to /architect.
    - **Open product decisions** — only ones I explicitly deferred; empty is
      the goal, since anything left here blocks /architect.
 
-   Show it to me and iterate until I approve.
-5. **Write the file.** Discover the project's docs convention (a docs/ or
-   product dir); if there is none, write
+   Draft it straight into the brief file (step 5 says where) — never
+   paste the draft into chat, where the body would be paid twice, once
+   shown and once written. Present the path plus a few-line recap of the
+   decisions it encodes, and iterate in the file until I approve — I
+   read it in my editor. An uncommitted file is cheap to change or
+   discard; the gate that waits for my go-ahead is the commit, as ever.
+5. **The file's location.** Discover the project's docs convention (a
+   docs/ or product dir) before drafting; if there is none, write
    `docs/product/briefs/<feature>.md` — briefs live one level below the
    vision doc, so vision.md stays alone and findable at the top.
    Don't invent a deeper structure. If shaping changed the vision's

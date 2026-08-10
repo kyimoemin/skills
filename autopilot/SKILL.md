@@ -56,20 +56,27 @@ rule here is about what may *enter*:
 - **The log is the state.** Re-read `.sprint/autopilot-<feature>.md`
   rather than carrying run state; hold the current stage and nothing
   more.
-- **Dispatch heavy, non-conversational stages.** A stage whose work is
-  a conversation with me (shape, design-ui, architect's design
-  iteration) runs inline — the conversation flows through you either
-  way. A stage that is itself a dispatcher (sprint, qa) also runs
-  inline; its sub-agents carry the weight. But a stage that is heavy
-  reading or writing with no mid-flow conversation — retro is the
-  standing case — you dispatch: a general-purpose subagent prompted to
-  read `~/.claude/skills/<stage>/SKILL.md` and follow it exactly, with
-  the arguments you'd pass, plus the line "There is no user mid-run —
+- **Dispatch every heavy stage; only dispatchers run inline.** A stage
+  that is itself a dispatcher (sprint, qa) runs inline — it is already
+  lean, and its sub-agents carry the weight. Every other stage — shape,
+  design-ui, architect, retro — you dispatch, conversational or not: a
+  general-purpose subagent prompted to read
+  `~/.claude/skills/<stage>/SKILL.md` and follow it exactly, with the
+  arguments you'd pass, plus the line "There is no user mid-run —
   where the skill would stop to ask, stop there and return the
-  question(s) verbatim instead of answering." Relay its report and
-  questions untouched; my answers go back in a fresh dispatch. The
-  hard rule above applies through sub-agents unchanged — a dispatched
-  stage's question is still mine, never yours.
+  question(s) verbatim instead of answering." Its skill text, file
+  reads, and draft bodies live and die in its context, never yours; it
+  returns paths, questions, and its report line.
+- **Relay rounds go to the same agent.** Relay a dispatched stage's
+  report and questions untouched — the hard rule above applies through
+  sub-agents unchanged; its question is still mine, never yours — then
+  send my answers back to the *same* agent (SendMessage), which still
+  holds everything it read and drafted. Keep that loop going until the
+  stage completes. A fresh dispatch re-pays the whole stage's reading,
+  so start one only when the agent is gone (you are a resumed session)
+  — pass along any relayed answers you still hold, and where they are
+  lost with the old context, let the stage re-ask rather than guessing;
+  this log records autopilot-level answers only, per its own rules.
 - **A bloated session is not a crisis.** Resume exists so a fresh
   session can pick up mid-run from the log. If your context has grown
   past usefulness, say so and stop cleanly with the log current —
@@ -278,10 +285,10 @@ artifact already exists and verifies (log it as `STAGE: <name> skipped →
    Never slip bug tickets into the current iteration without that roll;
    plan-sprint has no add-to-running-iteration mode.
 8. **retro** — once this iteration's QA is done; retro's grain is the
-   iteration, so a multi-iteration feature gets one per cycle. This is
-   the stage you dispatch (see Context economy): its work is mining run
-   logs, review round files and QA results, none of which belongs in
-   your context. Pass the sprint id
+   iteration, so a multi-iteration feature gets one per cycle.
+   Dispatched like every non-dispatcher stage (see Context economy):
+   its work is mining run logs, review round files and QA results, none
+   of which belongs in your context. Pass the sprint id
    (retro takes `$1`), never no-arg — its no-arg discovery globs
    `.sprint/` run logs and must not land on this autopilot log. The
    board iteration may not be closed yet; retro's offer to archive can

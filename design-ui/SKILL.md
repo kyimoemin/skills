@@ -27,9 +27,12 @@ anything — it's the taste; these docs are the record.
    buttons, inputs, dialogs, toasts, empty states, microcopy tone. Every
    later screen inherits these; anything left vague here gets invented
    differently by each implementer.
-3. **Write the language doc** to `docs/design/ui/design-language.md`
-   after I approve the draft — decisions and the why, concrete enough
-   that two implementers working blind produce screens that look related.
+3. **Draft the language doc** at `docs/design/ui/design-language.md` —
+   decisions and the why, concrete enough that two implementers working
+   blind produce screens that look related. Draft it in the file, never
+   as a chat paste (the body would be paid twice); present the path plus
+   a few-line recap of the decisions, and iterate in the file until I
+   approve — the commit in step 6 is the gate that waits for me.
    Implementers follow this doc by standing rule; it is the contract.
 4. **Feature screens.** Read the brief and treat its decisions as
    settled — scope questions go back to /shape, not here. For each user
@@ -38,8 +41,10 @@ anything — it's the taste; these docs are the record.
    in-progress, confirmation), and the interactions between them. Stay
    inside the design language; when a feature genuinely needs a new
    idiom, that's a flagged language-doc update ("add it for everyone?"),
-   never a one-off. Show me the draft and iterate until I approve.
-5. **Write the feature doc** to `docs/design/ui/<feature>.md`, mirroring
+   never a one-off. Draft these straight into the feature doc (step 5)
+   the same way — path plus decision recap in chat, the doc body only in
+   the file, iterating there until I approve.
+5. **The feature doc** lives at `docs/design/ui/<feature>.md`, mirroring
    the brief's basename. /architect links it from the tickets that build
    these screens.
 6. **Commit** what this run wrote (`chore: add <feature> UI design` or

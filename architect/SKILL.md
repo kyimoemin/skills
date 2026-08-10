@@ -40,8 +40,11 @@ product decision gets settled here, not discovered mid-sprint.
    which you resolve with me now, so none leak into tickets. Include a
    mermaid diagram when the design has structure prose carries poorly — a
    new data flow, state machine, or component interaction — and skip it for
-   flat changes; a two-ticket feature doesn't need a box-and-arrow. Show it
-   to me and iterate until I approve.
+   flat changes; a two-ticket feature doesn't need a box-and-arrow. Draft
+   it straight into the doc (step 5 says where — discover the location
+   first), never as a chat paste where the body is paid twice: present
+   the path plus the key decisions in a few lines, and iterate in the
+   file until I approve.
 5. **Where the design lives.** Discover the project's convention (a docs/
    design dir, tracker epic description, ADRs); if there is none, write
    `docs/design/<feature>.md`, mirroring the brief's basename. The doc is
