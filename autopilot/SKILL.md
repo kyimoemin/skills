@@ -24,7 +24,9 @@ uses positional args). Several stages aren't invocable by you directly
 (they carry `disable-model-invocation`); read-and-follow works for all
 of them, so use it uniformly. Every rule in the stage skill applies
 unchanged — its go-ahead gates, its run logs, its permission checks, its
-report formats.
+report formats. Where a stage *runs* — in your context, or inside a
+dispatched sub-agent reading the same SKILL.md — is Context economy's
+call (below); the stage's rules bind either way.
 
 **Hard rule: never answer a stage's question yourself.** When a stage
 would stop and ask me — shape's product conversation, architect's
@@ -35,6 +37,44 @@ batched (parked tickets already surface together), but never invent,
 assume, or default an answer to keep the loop moving. The stops named in
 the loop below are the big ones, not the full list — stages stop
 wherever their own skill says to stop, and you honor all of them.
+
+## Context economy
+
+You are the longest-lived context in the suite — one run spans a whole
+feature, often several iterations — and a context only grows; a rule
+about holding less reclaims nothing once the tokens are in. So every
+rule here is about what may *enter*:
+
+- **Pointers, not bodies.** Verify a `STAGE:` artifact by existence — a
+  glob, an `ls`, at most a frontmatter peek — never by reading it
+  through. Relay artifacts by path in reports and dispatch prompts;
+  never paste a brief, design doc, ticket body, or diff into your
+  context or anyone else's prompt. The stage skills keep this
+  discipline internally (sprint and qa dispatch sub-agents and pass
+  tickets by reference, not by paste); don't undo it by re-reading what
+  they produce.
+- **The log is the state.** Re-read `.sprint/autopilot-<feature>.md`
+  rather than carrying run state; hold the current stage and nothing
+  more.
+- **Dispatch heavy, non-conversational stages.** A stage whose work is
+  a conversation with me (shape, design-ui, architect's design
+  iteration) runs inline — the conversation flows through you either
+  way. A stage that is itself a dispatcher (sprint, qa) also runs
+  inline; its sub-agents carry the weight. But a stage that is heavy
+  reading or writing with no mid-flow conversation — retro is the
+  standing case — you dispatch: a general-purpose subagent prompted to
+  read `~/.claude/skills/<stage>/SKILL.md` and follow it exactly, with
+  the arguments you'd pass, plus the line "There is no user mid-run —
+  where the skill would stop to ask, stop there and return the
+  question(s) verbatim instead of answering." Relay its report and
+  questions untouched; my answers go back in a fresh dispatch. The
+  hard rule above applies through sub-agents unchanged — a dispatched
+  stage's question is still mine, never yours.
+- **A bloated session is not a crisis.** Resume exists so a fresh
+  session can pick up mid-run from the log. If your context has grown
+  past usefulness, say so and stop cleanly with the log current —
+  starting over costs one startup; carrying a heavy context costs every
+  turn.
 
 ## Merge mode
 
@@ -153,9 +193,6 @@ in `RUN COMPLETE`:
   Then settle MODE (above) and record shape's `STAGE:` line — startup's
   shape run IS loop step 1, not a stage to repeat.
 
-Keep your context small: hold the current stage and nothing more. The
-log is where run state lives — re-read it rather than carrying it.
-
 ## The loop
 
 One feature per run, stages in order — but one run may span several
@@ -231,9 +268,11 @@ artifact already exists and verifies (log it as `STAGE: <name> skipped →
    Never slip bug tickets into the current iteration without that roll;
    plan-sprint has no add-to-running-iteration mode.
 8. **retro** — once this iteration's QA is done; retro's grain is the
-   iteration, so a multi-iteration feature gets one per cycle. Invoke
-   it with the sprint id
-   (retro takes `$1`), not no-arg — its no-arg discovery globs
+   iteration, so a multi-iteration feature gets one per cycle. This is
+   the stage you dispatch (see Context economy): its work is mining run
+   logs, review round files and QA results, none of which belongs in
+   your context. Pass the sprint id
+   (retro takes `$1`), never no-arg — its no-arg discovery globs
    `.sprint/` run logs and must not land on this autopilot log. The
    board iteration may not be closed yet; retro's offer to archive can
    wait for the next plan-sprint roll.

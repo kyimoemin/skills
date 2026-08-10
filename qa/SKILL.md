@@ -33,8 +33,13 @@ unmerged work.
   with that question. Show me the list and confirm before
   dispatching.
 
-Read each ticket's acceptance criteria from the tracker (discover it —
-issue tracker or backlog/board files). A ticket with no findable criteria
+Locate each ticket's acceptance criteria (discover the tracker — issue
+tracker or backlog/board files) without pulling them into your context:
+on a file-based board, grep the ticket file to confirm a criteria
+section exists and pass the verifier the file path. Only when the
+tracker isn't something the verifier can read (its tools are file and
+shell only — no tracker MCP) fetch the criteria and paste them verbatim
+into the dispatch. A ticket with no findable criteria
 is skipped with a note — a verifier can't judge against nothing.
 
 ## Dispatch
@@ -51,8 +56,10 @@ line and let me decide whether to add it — don't add it yourself.
 
 Work through the tickets ONE AT A TIME — verifiers run the app, and two at
 once fight over ports and state. Per ticket, dispatch a `qa-verifier`
-subagent, synchronously, with: ticket id, acceptance criteria verbatim,
-repo path, merged PR number, and any how-to-run notes from the project's
+subagent, synchronously, with: ticket id, the acceptance criteria — the
+ticket file's path for it to read on a file-based board, verbatim text
+only when the tracker isn't file-readable (see Scope) — repo path,
+merged PR number, and any how-to-run notes from the project's
 docs if you already know them. Nothing else — it discovers the rest itself.
 
 On return, record the one-line result and move on. `blocked` → write the

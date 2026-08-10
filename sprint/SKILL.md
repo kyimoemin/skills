@@ -10,6 +10,10 @@ allowed-tools: Bash(git *), Bash(gh *)
 Tickets: $ARGUMENTS
 
 You are a dispatcher. Do not read implementation files. Do not read diffs.
+Do not Read ticket files: implementers edit their status lines, and every
+file you have Read is echoed back into your context when it changes —
+grep the specific lines ordering needs (status, blockers) instead, and
+leave the body for the implementer.
 Do not implement, fix, or resolve anything yourself — when work is stranded
 with no implementer to own it (an implementer died mid-ticket, a merge hits
 conflicts), dispatch a fresh ticket-implementer with a `resume:` line
@@ -150,13 +154,18 @@ looks wrong).
 Work through the tickets ONE AT A TIME, in the order given (or planned).
 Per ticket:
 
-1. **Read the ticket** from the tracker: title, description, acceptance
-   criteria. Read what you need, but never move a card or comment on one —
-   the card and its trail belong to the implementers.
-2. **Dispatch a `ticket-implementer` subagent** with: ticket id, full
-   description and acceptance criteria, repo path, the tracker location you
-   read the ticket from, all current decisions entries read from the run
-   log, and any `ANSWER:` lines for this ticket. The implementer runs the whole ticket
+1. **Locate the ticket** in the tracker: its id, where it lives (file
+   path or card), and — only when ordering needs them — the status and
+   blocker lines, grepped per the rule above. The body stays out of your
+   context. Never move a card or comment on one — the card and its trail
+   belong to the implementers.
+2. **Dispatch a `ticket-implementer` subagent** with: ticket id, the
+   ticket's source — its file path on a file-based board, otherwise the
+   tracker location and card — repo path, all current decisions entries
+   read from the run log, and any `ANSWER:` lines for this ticket. The
+   implementer reads the ticket body from that source itself; paste the
+   full description and acceptance criteria into the prompt only when
+   the ticket has no source an implementer can read. The implementer runs the whole ticket
    itself — implementation, its own independent review loop (fresh
    read-only `ticket-reviewer` subagent per round, max 3 rounds, round
    files written to
