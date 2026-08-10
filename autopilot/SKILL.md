@@ -2,7 +2,7 @@
 description: Drive the whole feature loop end to end — shape → design-ui → architect → plan-sprint → sprint → merge → qa → retro — with every stage's questions propagated to me and a progress log that lets a new session resume mid-loop. Merge gate is a flag (auto or manual); deploy stays human, always.
 argument-hint: "[merge=auto|manual] [feature-name]"
 disable-model-invocation: true
-allowed-tools: Bash(git *), Bash(gh *)
+allowed-tools: Bash(git *), Bash(gh *), Bash(bun run *)
 ---
 
 # Autopilot
@@ -192,6 +192,16 @@ in `RUN COMPLETE`:
   `FEATURE:` line — never do consequential work with no log on disk.
   Then settle MODE (above) and record shape's `STAGE:` line — startup's
   shape run IS loop step 1, not a stage to repeat.
+
+**Progress watcher (both paths, best-effort):** once the progress log
+exists — resumed or newly created — start the visual watcher as a
+background task: `bun run ~/.claude/skills/watch/scripts/render-md.ts
+<project root> --watch`. It deterministically regenerates
+`.sprint/progress-<feature>.md` from the logs; the script self-guards
+against duplicates, so start it blindly and never wait on it, poll it,
+or supervise it. You never write or edit that file yourself — it is
+derived output, not a log. If bun or the watch skill is missing, skip
+and say so in one line; the run proceeds unaffected.
 
 ## The loop
 
