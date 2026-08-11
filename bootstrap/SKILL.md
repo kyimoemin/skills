@@ -30,21 +30,36 @@ tickets, not a re-bootstrap. This skill is greenfield-only.
    expensive to reverse, so they get the same dialogue treatment /shape
    gives product decisions. Propose a recommendation each, with a one-line
    why, and wait for my picks:
-   - **Stack** — language, framework, package manager. Ask first whether
-     I already have a stack I prefer or know well — on a project I'll be
-     reading every PR of, familiarity beats marginal fit. Then present
-     the consequential picks as separate decisions with real named
-     alternatives (e.g. React vs Svelte vs no framework), one-line why
-     each, steered by what the product needs, not fashion. Never bundle
-     the whole stack inside a single "recommended" option — that's
-     choosing for me while appearing to ask.
+   - **Stack** — ask first whether I already have a stack I prefer or
+     know well — on a project I'll be reading every PR of, familiarity
+     beats marginal fit. Then settle each of these as its OWN decision,
+     with real named alternatives and a one-line why each, steered by
+     what the product needs, not fashion:
+     - **Language** (e.g. TypeScript vs Go vs Python)
+     - **Framework** (e.g. React vs Svelte vs no framework)
+     - **Package manager** — always its own ask (e.g. bun vs pnpm vs
+       npm), never defaulted or inferred from a scaffolder example.
+     - **Foundational libraries** — once language and framework are
+       picked, the libraries every ticket will build on are decisions
+       too, not implementation details. Which layers those are depends
+       on the stack — derive them from what the vision needs (a web UI
+       has layers like routing/state/styling; a backend has layers like
+       persistence/validation; a CLI has arg-parsing; don't ask from a
+       fixed list). Recommendation + one-line why each; skip layers v1
+       doesn't need, but say you're skipping them. Settling these here
+       doesn't mean installing them all now — step 3 stays minimal;
+       only what the scaffold needs gets installed.
+
+     Never bundle several of these inside a single "recommended
+     option" — that's choosing for me while appearing to ask.
    - **Tracker** — issue tracker (e.g. GitHub issues + milestones) or
      board files in the repo; this is what every skill will discover.
    - **Hosting/release target** — where v1 will run, even if the answer
      is "local only for now"; /deploy will discover whatever this sets up.
 3. **Scaffold — deliberately minimal.** Start from the ecosystem's
-   official scaffolder when one exists (`pnpm create vite`, `cargo new`,
-   `create-next-app`, …) and trim from there — hand-rolling the configs a
+   official scaffolder when one exists, invoked via the package manager
+   chosen in step 2 (`bun create vite`, `pnpm create vite`, `cargo new`,
+   …) and trim from there — hand-rolling the configs a
    scaffolder generates invites drift and version-mismatch bugs the
    ecosystem has already solved. What it must prove: the pipeline, not a
    head start on the product — it compiles/runs, has lint and test
