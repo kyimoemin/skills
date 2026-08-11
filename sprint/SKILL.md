@@ -1,6 +1,6 @@
 ---
 description: Work through sprint tickets autonomously via ticket-implementer subagents — each implements, runs its own independent review loop, and finalizes; stop before merge. Merge only the tickets I explicitly approve at the end.
-argument-hint: "[TICKET-IDs space separated | all]"
+argument-hint: "[serial] [TICKET-IDs space separated | all]"
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *)
 ---
@@ -45,7 +45,9 @@ highest-numbered one:
 - **Exists, not ending in `RUN COMPLETE`** → first check it is even this
   run's log: if its `ORDER:` line shares no ticket with what I asked for, it
   belongs to a different run — leave it untouched and start a new log at the
-  next free suffix. Otherwise do not start. Replay it, and for the
+  next free suffix. Otherwise do not start. Replay it — a parallel run can
+  leave SEVERAL `dispatched` lines with no matching return; every one of
+  them is an interrupted ticket, handled the same way — and for each
   interrupted ticket establish the real state yourself with `git` and `gh` —
   does the branch exist, how old is its last commit, is there a PR and in
   what state. You have both tools; no subagent needs to run to find this
@@ -98,12 +100,14 @@ Use this format, so any later run can replay a log it didn't write:
 
 ```
 ORDER: ABC-12, ABC-15, ABC-9
+WAVE: ABC-12 ABC-15
 ABC-12 dispatched
+ABC-15 dispatched
 ABC-12 returned complete, PR #204, 2 review rounds, head a1b2c3f, ready-to-merge, tracker: Trello/Sprint Board
 DECISION: auth errors now surface as 401 not 500 (ABC-12)
-ABC-15 dispatched
 ABC-15 returned blocked: acceptance criteria don't cover expired tokens
 ABC-15 parked
+WAVE: ABC-9
 ABC-9 dispatched
 ABC-9 returned complete, PR #207, 1 review round, head 9c4d1e2, ready-to-merge, tracker: Trello/Sprint Board
 RUN STOPPED awaiting: ABC-15
@@ -151,7 +155,41 @@ Otherwise report the planned order in one short list, then proceed
 immediately without waiting for confirmation (I can interrupt if the order
 looks wrong).
 
-Work through the tickets ONE AT A TIME, in the order given (or planned).
+## Execution: waves
+
+Work through the tickets in WAVES. Partition the ordered list using the
+dependency information you already have (the order you planned, the
+tracker's blocker links): a ticket lands in the earliest wave after every
+ticket it depends on has returned `complete`; tickets with no dependency
+edge between them may share a wave and run in parallel. Two things force
+tickets apart even without a dependency link:
+
+- tickets whose tracking lives in the same board FILE — both branches
+  will edit that file off the same base, and every pair that ran together
+  becomes a merge-phase conflict; serializing them doesn't prevent the
+  first conflict, but keeps them from piling up; and
+- any ticket whose dependencies you cannot confidently determine. When in
+  doubt, serialize: a slow run is recoverable, tangled branches are not.
+
+If the word `serial` appears in the arguments (`/sprint serial ABC-1
+ABC-2`, `/sprint serial all`), every wave is exactly one ticket — strict
+one-at-a-time in the given order, no exceptions. The flag also binds any
+resume of that run: record it by appending ` (serial)` to the `ORDER:`
+line, and honor it on replay.
+
+Cap a wave at 3 concurrent implementers — a wider wave runs in batches of
+3. When a wave dispatches, append `WAVE: <ids>` to the run log, then the
+individual `dispatched` lines. Dispatch the whole wave in ONE message
+(parallel tool calls), each dispatch with worktree isolation
+(`isolation: "worktree"`) so no two implementers share a working tree; a
+single-ticket wave may run in the main checkout without isolation, as
+before. Wait for the entire wave to return before planning the next —
+append each return line as it arrives, and apply step 3's parking to
+dependents when the next wave is planned. Merges still happen only in the
+merge phase, so `main` never moves under a running wave; branch collisions
+surface, if at all, as ordinary PR conflicts the merge phase already
+handles.
+
 Per ticket:
 
 1. **Locate the ticket** in the tracker: its id, where it lives (file
@@ -162,7 +200,11 @@ Per ticket:
 2. **Dispatch a `ticket-implementer` subagent** with: ticket id, the
    ticket's source — its file path on a file-based board, otherwise the
    tracker location and card — repo path, all current decisions entries
-   read from the run log, and any `ANSWER:` lines for this ticket. The
+   read from the run log, and any `ANSWER:` lines for this ticket. On a
+   worktree-isolated dispatch, the repo path you pass is still the MAIN
+   checkout, and the prompt must say `worktree: yes` — the implementer
+   works in its isolated worktree but routes everything under `.sprint/`
+   to the main checkout, and needs to know which situation it is in. The
    implementer reads the ticket body from that source itself; paste the
    full description and acceptance criteria into the prompt only when
    the ticket has no source an implementer can read. The implementer runs the whole ticket
@@ -245,6 +287,35 @@ fresh on top of them.
 Tickets I didn't name stay open — list them at the end as still awaiting my
 decision. (For tickets closed outside a sprint run, `/close-ticket` still
 exists.)
+
+## Syncing `.sprint/` to the archive ref
+
+`.sprint/` is excluded from the index, so on its own it dies with this
+machine — and the QA gate and retro die with it. It survives via a
+dedicated ref, `refs/sprint/archive`, holding snapshots of the whole
+`.sprint/` directory outside every branch. Snapshot and push after
+appending `RUN STOPPED` or `RUN COMPLETE`, and again after a merge phase:
+
+```
+git fetch origin refs/sprint/archive 2>/dev/null || true   # parent on the latest snapshot
+parent=$(git rev-parse -q --verify FETCH_HEAD || git rev-parse -q --verify refs/sprint/archive || true)
+export GIT_INDEX_FILE=.git/sprint-sync-index
+git read-tree --empty && git add -f .sprint
+tree=$(git write-tree); unset GIT_INDEX_FILE
+git update-ref refs/sprint/archive "$(git commit-tree $tree ${parent:+-p $parent} -m "sprint sync: <sprint-id>")"
+rm -f .git/sprint-sync-index
+git push origin refs/sprint/archive
+```
+
+No remote → keep the local ref and note it in the report; never put
+`.sprint/` on a normal branch instead. Readers (/qa, /deploy, /retro)
+restore a missing `.sprint/` from this ref, so a sync you skip is an
+audit trail another machine can't see.
+
+Parts of this compound command (`export`, `rm`, the readers' `tar`) fall
+outside the `Bash(git *)` allowlist and may prompt — an unattended run
+that gets the sync denied must say so in its report, never silently skip
+it. If the prompts annoy, that's mine to fix by allowlisting, not yours.
 
 **Decisions log** — cross-cutting decisions a later ticket needs to know
 about. These are entries in the run log like any other, prefixed `DECISION:`

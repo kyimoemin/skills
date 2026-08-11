@@ -30,9 +30,13 @@ re-runs after a failed attempt.
      rerun `qa-<ticket>-<N>.md`, never a looser prefix match (same rule
      as /qa: with bare numeric ids a `qa-1*` glob swallows ticket 12's
      results into ticket 1). Take the highest-suffix file as current.
-     Failed or blocked QA → stop and report. No QA results →
-     say so and ask whether to run /qa first or ship without it; don't
-     silently skip the gate.
+     Failed or blocked QA → stop and report. No results locally → the QA
+     may have run on another machine: restore `.sprint/` from the archive
+     ref first (`git fetch origin refs/sprint/archive:refs/sprint/archive`
+     then `git archive refs/sprint/archive | tar -xk`; `-k` skips existing
+     local files on macOS's tar, GNU tar wants `--skip-old-files`). Still
+     no QA results → say so and ask whether to run
+     /qa first or ship without it; don't silently skip the gate.
 3. **Version & changelog.** Infer the versioning scheme from tags and the
    package manifest, and judge the bump from the merged changes since the
    last release. If the project keeps a changelog, draft the entry in its

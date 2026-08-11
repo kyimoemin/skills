@@ -134,7 +134,7 @@ it.
 The run's state lives in `.sprint/autopilot-<feature>.md`, where
 `<feature>` is the brief's basename — one log per feature cycle,
 created the moment the feature is settled (see Startup). Same rules as
-the sprint run log: local-only and append-only (a rewrite that dies
+the sprint run log: kept off every branch, and append-only (a rewrite that dies
 mid-write can truncate the log; an append can only lose its own last
 line). Before the first write, add `.sprint/` to `.git/info/exclude` if
 it isn't there — never to `.gitignore`, which is a tracked file and

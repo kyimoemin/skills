@@ -33,6 +33,14 @@ unmerged work.
   with that question. Show me the list and confirm before
   dispatching.
 
+Result files may live on another machine: if `.sprint/` is missing (or has
+no results where the run log says a sprint happened), restore it from the
+archive ref before concluding nothing ran —
+`git fetch origin refs/sprint/archive:refs/sprint/archive` then
+`git archive refs/sprint/archive | tar -xk` (`-k` skips existing local
+files on macOS's tar; on GNU tar use `--skip-old-files`). No such ref on
+the remote → genuinely no results.
+
 Locate each ticket's acceptance criteria (discover the tracker — issue
 tracker or backlog/board files) without pulling them into your context:
 on a file-based board, grep the ticket file to confirm a criteria
@@ -73,6 +81,13 @@ file per the rerun convention. If the return says `→ inline`, write the entrie
 yourself to the next free results file — `.sprint/qa-<ticket>.md`, or
 `qa-<ticket>-2.md` and so on if earlier runs exist — never overwriting a
 previous run; the suffixed files are the QA audit trail.
+
+After the last verifier returns and its result file is written, snapshot
+`.sprint/` to `refs/sprint/archive` and push, exactly as /sprint's sync
+section does (temp index → `git add -f .sprint` → `write-tree` →
+`commit-tree` parenting the previous snapshot → `update-ref` → push) — QA
+results feed /deploy's gate and /retro, possibly from another machine. No
+remote → keep the local ref and note it.
 
 ## Failures → bug tickets
 

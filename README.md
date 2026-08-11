@@ -24,8 +24,8 @@ flowchart TB
     end
 
     subgraph build ["Build"]
-        sprint["/sprint\npure dispatcher, serial"]
-        impl[["ticket-implementer\nbranch → code → PR → finalize"]]
+        sprint["/sprint\npure dispatcher, dep-waves\n(parallel unless `serial`)"]
+        impl[["ticket-implementer\nown worktree: branch → code → PR → finalize"]]
         reviewer[["ticket-reviewer\nread-only, fresh per round ≤3"]]
     end
 
@@ -39,7 +39,7 @@ flowchart TB
     standup["/standup\nread-only status"]
 
     tracker[("tracker / backlog\ncards: implementer is sole writer")]
-    dotsprint[(".sprint/  (local-only)\nrun log · findings · QA results")]
+    dotsprint[(".sprint/  (synced via refs/sprint/archive)\nrun log · findings · QA results")]
 
     idea([app or feature idea]) --> vision
     idea --> shape
@@ -89,13 +89,13 @@ interrupted run resumes where it stopped.
 | Plan | `/bootstrap` | Once per project: vision → stack/tracker/hosting decisions, minimal scaffold with lint/test/CI green |
 | Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
 | Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets (default board is sprint-based — tickets must land in a sprint before dispatch) |
-| Build | `/sprint` | Dispatch one `ticket-implementer` per ticket; park blockers; merge only what you name |
+| Build | `/sprint` | Dispatch one `ticket-implementer` per ticket in dependency waves — independent tickets run parallel in isolated worktrees, `serial` flag forces one-at-a-time; park blockers; merge only what you name |
 | Build | `ticket-implementer` | One ticket end to end: branch, code + tests, PR, own review loop, finalize; never merges |
 | Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria/test coverage; one parseable return line |
 | Ship | `/qa` | One `qa-verifier` per merged ticket; failures become bug tickets on go-ahead |
 | Ship | `qa-verifier` | Proves shipped behavior in the running app; code reading doesn't count |
 | Ship | `/deploy` | Discover the release mechanism; CI + QA gates; ship on explicit go-ahead; verify live |
-| Learn | `/retro` | Turn run logs, findings, and QA results into 1–3 evidenced process changes |
+| Learn | `/retro` | Turn run logs, findings, and QA results into 1–3 evidenced process changes — filed as project tickets, or as proposed edits to the suite's own skill/agent docs when the pattern indicts the workflow |
 | Anytime | `/standup` | Read-only: where things stand, grouped by who can act, ends with a `/sprint` line |
 | Anytime | `/add-ticket` `/start-ticket` `/close-ticket` | One-off capture / interactive single ticket / land a PR outside a sprint run |
 | Drive | `/autopilot` | Run the whole per-feature loop (shape → … → retro) hands-free; stage questions propagate to you; `merge=auto\|manual` flag; resumable via `.sprint/autopilot-<feature>.md` progress log |
@@ -109,8 +109,10 @@ interrupted run resumes where it stopped.
 - **`.sprint/`** (kept out of git via `.git/info/exclude`, never
   `.gitignore`) is the audit trail: append-only run logs, per-round
   findings files, QA results. `/deploy` reads it as the QA gate; `/retro`
-  is its final consumer. It's local-only — QA gates and retros only work on
-  the machine the sprint ran on.
+  is its final consumer. It's kept off every branch, but not machine-bound:
+  `/sprint` and `/qa` snapshot it to the `refs/sprint/archive` ref and push,
+  and readers restore a missing `.sprint/` from that ref — so QA gates and
+  retros work on machines the sprint didn't run on.
 - **The vision doc** (`docs/product/vision.md`, written by /vision once
   per app) is the durable feature queue: /shape pulls the next unshaped
   feature from its build order and stays inside its MVP cut; /bootstrap
