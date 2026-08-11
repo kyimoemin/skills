@@ -104,7 +104,8 @@ rule here is about what may *enter*:
   session can pick up mid-run from the log. If your context has grown
   past usefulness, say so and stop cleanly with the log current —
   starting over costs one startup; carrying a heavy context costs every
-  turn.
+  turn. The designated shed point is the iteration boundary in step 9,
+  where the loop already pauses for me.
 
 ## Merge mode
 
@@ -322,7 +323,14 @@ artifact already exists and verifies (log it as `STAGE: <name> skipped →
    its bugs are filed and my choice recorded). Tickets remain → the feature
    isn't delivered: go back to step 4 and roll the next iteration (all
    its gates apply); the log just accumulates another cycle of `STAGE:`
-   lines, which resume already handles. If I tell you to drop or
+   lines, which resume already handles. Pause once at this boundary
+   before rolling: append `RUN STOPPED awaiting: iteration go (safe
+   /compact point — log current)` and note in the report that
+   compacting here is lossless — the iteration's state is all on disk
+   and no relay loop is live — so I can /compact (or restart the
+   session) before answering. Compaction is mine to trigger; never
+   wait on it or ask twice. My go — compacted or not — is the answer:
+   record it as an `ANSWER: next iteration` line and roll step 4. If I tell you to drop or
    postpone named tickets instead, record `ANSWER: defer <tickets>
    <reason>` — deferred tickets leave the checklist, and the deferral
    is the log's explanation for closing without them.
