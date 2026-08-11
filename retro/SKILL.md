@@ -65,13 +65,16 @@ them here, not during the sprint.
 5. **Offer to capture.** For process changes worth keeping, offer to: file
    them as backlog tickets (via the project's conventions, on go-ahead),
    and/or append a retro section to wherever the project archives the
-   iteration if such a place exists. For changes that indict the workflow
-   itself, propose the amendment as the exact edit — which suite doc
-   (`~/.claude/skills/*/SKILL.md`, `~/.claude/agents/*.md`, or the
-   project's `docs/design/ui/design-language.md`) and the lines to add —
-   instead of a project ticket. Suite docs are suggestion-only: NEVER
-   edit a skill or agent doc yourself, with or without a go-ahead — the
-   proposal is the deliverable, and applying it is my call to make by
-   hand. Everything else (tickets, archive sections) still writes only
-   on my go-ahead; if there's nowhere for it, the report is the
-   deliverable.
+   iteration if such a place exists. Changes to files inside the project
+   repo — including `docs/design/ui/design-language.md` — are ordinary
+   project edits: propose them and apply on go-ahead. For changes that
+   indict the suite itself, write them to
+   `.sprint/retro-findings-<sprint-id>.md` instead of a project ticket:
+   one entry per finding, each naming the suite doc it concerns
+   (`~/.claude/skills/*/SKILL.md` or `~/.claude/agents/*.md`), the
+   evidence from this iteration, and the exact lines to add or change.
+   NEVER edit a skill or agent doc yourself, with or without a
+   go-ahead — the findings file is the deliverable; I read it and apply
+   what I agree with by hand. Everything else (tickets, archive
+   sections) still writes only on my go-ahead; if there's nowhere for
+   it, the report is the deliverable.
