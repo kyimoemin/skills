@@ -147,8 +147,11 @@ Append a line per event: feature settled, mode set, each stage completed
 or skipped, each stop for my input, each autopilot-level answer I give.
 A `STAGE:` line names the artifact **the stage actually reported** —
 stages discover the project's conventions, so record the real location
-(a path, a tracker epic, ticket ids), not an assumed default. Format
-(paths illustrative):
+(a path, a tracker epic, ticket ids), not an assumed default. A
+`[YYYY-MM-DD HH:MM]` prefix on any line is optional and welcome (the
+watch renderer tolerates it); keep the line's body in the exact formats
+below — they are what /watch and resume parse. Format (paths
+illustrative, prefixes omitted):
 
 ```
 FEATURE: user-auth

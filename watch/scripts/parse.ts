@@ -109,6 +109,12 @@ export interface DashState {
 }
 
 const TICKET_RE = /^[A-Za-z][\w.]*-\d+$/;
+
+/** Real logs may prefix every line with a `[YYYY-MM-DD HH:MM]` stamp
+ *  (the autopilot SKILL.md allows it). Parsing always works on the
+ *  unstamped line; rawTail keeps lines verbatim. */
+const STAMP_RE = /^\[[^\]\n]{0,40}\]\s+/;
+export const stripStamp = (line: string): string => line.replace(STAMP_RE, "");
 const GROUNDWORK = new Set(["shape", "design-ui", "architect"]);
 const LOOP_ORDER = [
   "shape",
@@ -169,7 +175,8 @@ export function parseAutopilotLog(text: string): AutopilotParse {
     return it;
   };
 
-  for (const line of lines) {
+  for (const rawLine of lines) {
+    const line = stripStamp(rawLine);
     if (!line) continue;
 
     let m: RegExpMatchArray | null;
@@ -325,7 +332,7 @@ export function parseSprintLog(text: string): SprintParse {
   };
 
   for (const raw of text.split("\n")) {
-    const line = raw.trim();
+    const line = stripStamp(raw.trim());
     if (!line) continue;
     let m: RegExpMatchArray | null;
 
@@ -471,11 +478,10 @@ export function buildState(inp: BuildInputs): DashState {
     for (const [id, ev] of Object.entries(sp.tickets)) events.set(id, ev);
   }
 
-  const ids = new Set<string>([
-    ...ap.featureTickets,
-    ...events.keys(),
-    ...Object.keys(rounds),
-  ]);
+  // Rows come from this run's own logs; round files only decorate them.
+  // `.sprint/` accumulates review-*-r*.md across features, so a stale
+  // file must never conjure a ticket row for a run it doesn't belong to.
+  const ids = new Set<string>([...ap.featureTickets, ...events.keys()]);
 
   const tickets: TicketState[] = [];
   for (const id of ids) {

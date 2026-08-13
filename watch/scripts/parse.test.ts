@@ -129,6 +129,20 @@ describe("parseAutopilotLog", () => {
     const p = parseAutopilotLog("STAGE: design-ui complete -> docs/design/ui/x.md\n");
     expect(p.groundwork[0].artifact).toBe("docs/design/ui/x.md");
   });
+
+  test("[YYYY-MM-DD HH:MM] prefixes parse the same as bare lines", () => {
+    // real run: todo project, completion-loop feature stamped every line
+    const stamped = AUTOPILOT_FULL.split("\n")
+      .map((l) => (l ? `[2026-08-13 11:14] ${l}` : l))
+      .join("\n");
+    const p = parseAutopilotLog(stamped);
+    expect(p.feature).toBe("user-auth");
+    expect(p.mode).toBe("merge=manual");
+    expect(p.run).toBe("complete");
+    expect(p.featureTickets).toEqual(["T-14", "T-15", "T-16"]);
+    // rawTail stays verbatim, stamps included
+    expect(p.rawTail[p.rawTail.length - 1]).toBe("[2026-08-13 11:14] RUN COMPLETE");
+  });
 });
 
 // Fixture: a REAL autopilot log (todo project, edit-a-task-title feature),
@@ -229,6 +243,14 @@ describe("parseSprintLog", () => {
     expect(p.tickets["T-2"].dependsOn).toBe("T-1");
     expect(p.tickets["T-1"].answers).toEqual(["use jwt"]);
     expect(p.tickets["T-1"].mergedInLog).toBe(true);
+  });
+
+  test("timestamp prefixes tolerated", () => {
+    const p = parseSprintLog(
+      "[2026-08-13 12:46] T-5 dispatched\n[2026-08-13 12:59] RUN STOPPED awaiting: T-5\n",
+    );
+    expect(p.tickets["T-5"].dispatched).toBe(true);
+    expect(p.run).toBe("stopped");
   });
 });
 
@@ -352,6 +374,23 @@ ANSWER: defer T-3 not this cycle
     expect(by["T-1"].state).toBe("qa-pass");
     expect(by["T-2"].state).toBe("qa-fail");
     expect(by["T-3"].state).toBe("deferred");
+  });
+
+  test("stale round files from an earlier feature create no rows", () => {
+    const ap = parseAutopilotLog(
+      "FEATURE: completion-loop\nSTAGE: architect complete → d.md, tickets T-5 T-6\n",
+    );
+    const state = buildState({
+      autopilot: ap,
+      sprints: [],
+      // T-1…T-4 are the previous feature's leftovers in .sprint/
+      roundFiles: ["review-T-1-r1.md", "review-T-4-r2.md", "review-T-5-r1.md"],
+      qaSignals: [],
+      now: NOW,
+    });
+    expect(state.tickets.map((t) => t.id)).toEqual(["T-5", "T-6"]);
+    const by = Object.fromEntries(state.tickets.map((t) => [t.id, t]));
+    expect(by["T-5"].reviewRounds).toBe(1); // still decorates known rows
   });
 
   test("parked tickets surface in awaiting", () => {

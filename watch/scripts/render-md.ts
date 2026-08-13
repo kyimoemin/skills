@@ -8,7 +8,7 @@
 // plus ticket table that VS Code's markdown preview live-refreshes.
 // No network, no ports, no dependencies beyond bun + node stdlib.
 
-import { existsSync, unlinkSync, watch } from "node:fs";
+import { existsSync, readFileSync, unlinkSync, watch } from "node:fs";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import {
@@ -219,6 +219,12 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
     candidates.find((c) => !c.text.trimEnd().endsWith("RUN COMPLETE")) ?? candidates[0];
 
   const autopilot = parseAutopilotLog(active.text);
+  // A parse gap must not collapse every run onto one "progress-run.md":
+  // the log's own basename carries the feature name autopilot named it by.
+  if (!autopilot.feature) {
+    const m = active.name.match(/^autopilot-(.+)\.md$/);
+    if (m) autopilot.feature = m[1];
+  }
 
   const sprints = [];
   for (const it of autopilot.iterations) {
@@ -290,27 +296,31 @@ if (import.meta.main) {
   if (watchMode) {
     const sprintDir = join(projectDir, ".sprint");
 
-    // self-guard: one watcher per project. Autopilot starts us blindly on
-    // every run/resume; a live pidfile means this start is a no-op.
+    // self-guard: one watcher per project, newest wins. Autopilot starts us
+    // blindly on every run/resume, and an older watcher may be attached but
+    // useless — running the code as it was at ITS start (bun loads once), or
+    // deaf after sleep/fs churn — while a live pid alone can't tell healthy
+    // from stale. So the fresh start takes over instead of deferring.
     const pidFile = join(sprintDir, ".progress-watch.pid");
-    if (existsSync(pidFile)) {
-      const pid = Number(await readFile(pidFile, "utf8").catch(() => "0"));
-      let alive = false;
-      try {
-        process.kill(pid, 0);
-        alive = pid > 0;
-      } catch {
-        /* stale pidfile — take over */
+    const claimPidfile = async () => {
+      const prev = Number(await readFile(pidFile, "utf8").catch(() => "0"));
+      if (prev > 0 && prev !== process.pid) {
+        try {
+          // SIGKILL: a predecessor's exit handler may unlink the pidfile
+          // unconditionally, which would erase the claim we're about to write
+          process.kill(prev, "SIGKILL");
+          console.log(`took over from previous watcher (pid ${prev})`);
+        } catch {
+          /* already gone */
+        }
       }
-      if (alive) {
-        console.log(`watcher already running for this project (pid ${pid}) — nothing to do`);
-        process.exit(0);
-      }
-    }
-    if (existsSync(sprintDir)) await writeFile(pidFile, String(process.pid));
+      await writeFile(pidFile, String(process.pid));
+    };
+    if (existsSync(sprintDir)) await claimPidfile();
     const dropPid = () => {
       try {
-        if (existsSync(pidFile)) unlinkSync(pidFile);
+        // remove only our own claim — a successor may have taken over
+        if (readFileSync(pidFile, "utf8") === String(process.pid)) unlinkSync(pidFile);
       } catch {
         /* best-effort */
       }
@@ -342,7 +352,7 @@ if (import.meta.main) {
       const poll = setInterval(() => {
         if (existsSync(sprintDir)) {
           clearInterval(poll);
-          writeFile(pidFile, String(process.pid)).catch(() => {});
+          claimPidfile().catch(() => {});
           schedule();
           attach();
         }
