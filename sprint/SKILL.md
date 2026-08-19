@@ -302,10 +302,27 @@ parent=$(git rev-parse -q --verify FETCH_HEAD || git rev-parse -q --verify refs/
 export GIT_INDEX_FILE=.git/sprint-sync-index
 git read-tree --empty && git add -f .sprint
 tree=$(git write-tree); unset GIT_INDEX_FILE
-git update-ref refs/sprint/archive "$(git commit-tree $tree ${parent:+-p $parent} -m "sprint sync: <sprint-id>")"
 rm -f .git/sprint-sync-index
+[ -n "$tree" ] || { echo "SPRINT SYNC FAILED: empty tree"; exit 1; }
+if [ -n "$parent" ]; then
+  commit=$(git commit-tree "$tree" -p "$parent" -m "sprint sync: <sprint-id>")
+else
+  commit=$(git commit-tree "$tree" -m "sprint sync: <sprint-id>")   # first snapshot
+fi
+[ -n "$commit" ] || { echo "SPRINT SYNC FAILED: commit-tree produced nothing"; exit 1; }
+git update-ref refs/sprint/archive "$commit"
 git push origin refs/sprint/archive
 ```
+
+**Do not collapse the `if` back into `${parent:+-p $parent}`.** Under `zsh` —
+the default shell on macOS — an unquoted parameter expansion does **not**
+word-split, so that form passes `-p <sha>` as a *single* argument and
+`commit-tree` dies with `not a valid object name`. That failure is silent in
+the worst way: `update-ref` then gets an empty string, and the `push` prints
+`Everything up-to-date`, so the sync **reports success while having written
+nothing**. Skip two of those in a row and the audit trail is gone with no
+signal anywhere. Always read the push output: a real sync prints an
+`<old>..<new>` ref update. The guards above turn the silent failure loud.
 
 No remote → keep the local ref and note it in the report; never put
 `.sprint/` on a normal branch instead. Readers (/qa, /deploy, /retro)
