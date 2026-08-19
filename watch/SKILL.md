@@ -1,5 +1,5 @@
 ---
-description: Maintain a visual progress file for the current autopilot run — .sprint/progress-<feature>.md with a mermaid pipeline, a waiting-on-you list, and a ticket table, all derived read-only from the run's own logs. One-shot by default; --watch keeps it live while autopilot runs.
+description: Maintain a visual progress file for the current run — an autopilot feature loop or a standalone /sprint run — with a mermaid diagram, a waiting-on-you list, and a ticket table, all derived read-only from the run's own logs. One-shot by default; --watch keeps it live while the run works.
 argument-hint: "[project-path] [--watch]"
 allowed-tools: Bash(bun run *)
 ---
@@ -29,15 +29,28 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <project-path> [--watch]
   watching. It regenerates on every `.sprint/` change until stopped; tell
   me it keeps running and how to stop it. Don't poll it — it needs no
   supervision.
-- Script prints "No autopilot log" → relay that message as-is; nothing to
-  fix. An autopilot run creates its log at startup, so this just means
-  the loop hasn't started here yet.
+- Script prints "No autopilot or sprint run log" (or no `.sprint/`) →
+  relay that message as-is; nothing to fix. Both /autopilot and /sprint
+  create their log at startup, so this just means neither has run here
+  yet.
 
 ## What the script derives (for your report, not for you to re-derive)
 
-The newest unfinished `.sprint/autopilot-*.md` (autopilot's own resume
-rule), its sprint run logs via the `STAGE: sprint started →` pointers,
-`review-<ticket>-r<N>.md` files as the live mid-ticket signal, and
-`qa-<ticket>[-<N>].md` verdicts. It writes exactly one file,
-`.sprint/progress-<feature>.md`, and touches nothing else — no network,
-no dependencies. Tests live next to it (`bun test` in the scripts dir).
+Which run it renders, in precedence order: an unfinished
+`.sprint/autopilot-*.md` (autopilot's own resume rule) → else an
+unfinished standalone sprint run log → else the newest finished run,
+autopilot first. A sprint run log is identified by content — a `.md` in
+`.sprint/` whose first entry is the `ORDER:` line /sprint writes — so
+stray notes are never mistaken for one, and logs an autopilot log points
+at (`STAGE: sprint started →`) belong to that feature run rather than
+counting as standalone.
+
+For the chosen run it reads its sprint logs, `review-<ticket>-r<N>.md`
+files as the live mid-ticket signal, and `qa-<ticket>[-<N>].md`
+verdicts. It writes exactly one file — `.sprint/progress-<feature>.md`
+for an autopilot run, `.sprint/progress-<sprint-id>.md` for a sprint run
+(re-runs `<id>-2.md`, `-3.md` share the one file) — and touches nothing
+else: no network, no dependencies. The two views differ: autopilot draws
+the shape → … → retro pipeline, a sprint run draws its own
+planned → working → ready → merged funnel plus its waves. Tests live
+next to the script (`bun test` in the scripts dir).

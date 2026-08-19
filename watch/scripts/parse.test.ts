@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+  buildSprintState,
   buildState,
   parseAutopilotLog,
   parseSprintLog,
@@ -409,5 +410,128 @@ ANSWER: defer T-3 not this cycle
     });
     expect(state.tickets[0].state).toBe("parked");
     expect(state.awaiting).toEqual(["T-1 parked: which auth provider?"]);
+  });
+});
+
+import { SPRINT_STANDALONE } from "./fixtures";
+
+describe("parseSprintLog — run shape", () => {
+  test("ORDER, serial flag, waves and raw tail", () => {
+    const p = parseSprintLog(SPRINT_STANDALONE);
+    expect(p.order).toEqual(["ABC-12", "ABC-15", "ABC-9"]);
+    expect(p.serial).toBe(true);
+    expect(p.waves).toEqual([["ABC-12", "ABC-15"], ["ABC-9"]]);
+    expect(p.decisions).toHaveLength(1);
+    expect(p.rawTail[0]).toBe("ORDER: ABC-12, ABC-15, ABC-9 (serial)");
+    expect(p.run).toBe("running");
+  });
+
+  test("a log with no ORDER line still parses", () => {
+    const p = parseSprintLog(SPRINT_LOG);
+    expect(p.order).toEqual([]);
+    expect(p.serial).toBe(false);
+    expect(p.waves).toEqual([]);
+  });
+});
+
+describe("buildSprintState", () => {
+  const state = () =>
+    buildSprintState({
+      sprint: parseSprintLog(SPRINT_STANDALONE),
+      sprintId: "sprint-3",
+      sprintLogPath: ".sprint/sprint-3.md",
+      sprintRun: 1,
+      roundFiles: ["review-ABC-9-r1.md"],
+      qaSignals: [],
+      now: new Date("2026-08-10T12:00:00Z"),
+    });
+
+  test("ticket rows come from ORDER plus the log's own events", () => {
+    const s = state();
+    expect(s.kind).toBe("sprint");
+    expect(s.feature).toBe("sprint-3");
+    expect(s.mode).toBe("serial");
+    expect(s.tickets.map((t) => `${t.id}:${t.state}`)).toEqual([
+      "ABC-9:in-review (round 1)",
+      "ABC-12:ready-to-merge",
+      "ABC-15:parked",
+    ]);
+    expect(s.decisions).toHaveLength(1);
+    expect(s.waves).toEqual([["ABC-12", "ABC-15"], ["ABC-9"]]);
+  });
+
+  test("finalized PRs and parked tickets are both waiting on me", () => {
+    const s = state();
+    expect(s.awaiting).toEqual([
+      "ABC-15 parked: acceptance criteria don't cover expired tokens",
+      "merge decision (ABC-12 #204)",
+    ]);
+  });
+
+  test("a RUN STOPPED line's own text leads, and merged tickets stop waiting", () => {
+    const s = buildSprintState({
+      sprint: parseSprintLog(
+        SPRINT_STANDALONE + "RUN STOPPED awaiting: ABC-15\nABC-12 merged\nRUN COMPLETE\n",
+      ),
+      sprintId: "sprint-3",
+      roundFiles: [],
+      qaSignals: [],
+      now: new Date("2026-08-10T12:00:00Z"),
+    });
+    expect(s.run).toBe("complete");
+    expect(s.tickets.find((t) => t.id === "ABC-12")?.state).toBe("merged");
+    // complete run: no merge-decision line invented
+    expect(s.awaiting.some((a) => a.startsWith("merge decision"))).toBe(false);
+  });
+});
+
+describe("sprint view — review regressions", () => {
+  const NOW = new Date("2026-08-10T12:00:00Z");
+  const build = (log: string) =>
+    buildSprintState({
+      sprint: parseSprintLog(log),
+      sprintId: "s",
+      roundFiles: [],
+      qaSignals: [],
+      now: NOW,
+    });
+
+  test("a prefix-sharing ticket id cannot swallow another's awaiting line", () => {
+    const s = build(
+      "ORDER: ABC-1, ABC-12\nABC-1 dispatched\nABC-12 dispatched\n" +
+        "ABC-1 returned complete, PR #10, 1 review round, head abc1234, ready-to-merge, tracker: board\n" +
+        "ABC-12 returned blocked: needs schema decision\nABC-12 parked\n",
+    );
+    expect(s.awaiting).toEqual([
+      "ABC-12 parked: needs schema decision",
+      "merge decision (ABC-1 #10)",
+    ]);
+  });
+
+  test("activity after RUN STOPPED clears the stop and its awaiting text", () => {
+    const s = build(
+      "ORDER: ABC-1\nABC-1 dispatched\n" +
+        "ABC-1 returned complete, PR #10, 1 review round, head abc1234, ready-to-merge, tracker: board\n" +
+        "RUN STOPPED awaiting: merge decision (ABC-1 #10)\nABC-1 merged\n",
+    );
+    expect(s.run).toBe("running");
+    expect(s.awaiting).toEqual([]);
+    expect(s.tickets[0].state).toBe("merged");
+  });
+
+  test("a re-dispatched ticket is in-progress, not blocked", () => {
+    const s = build(
+      "ORDER: ABC-1\nABC-1 dispatched\n" +
+        "ABC-1 returned blocked: unclear criteria\nABC-1 parked\n" +
+        "RUN STOPPED awaiting: ABC-1\nANSWER: ABC-1 cover expired tokens too\nABC-1 dispatched\n",
+    );
+    expect(s.run).toBe("running");
+    expect(s.tickets[0].state).toBe("in-progress");
+    expect(s.awaiting).toEqual([]);
+  });
+
+  test("serial comes from the trailing marker, not ticket ids", () => {
+    expect(parseSprintLog("ORDER: SERIAL-1, SERIAL-2\n").serial).toBe(false);
+    expect(parseSprintLog("ORDER: SERIAL-1, SERIAL-2 (serial)\n").serial).toBe(true);
   });
 });

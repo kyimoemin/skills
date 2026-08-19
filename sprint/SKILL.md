@@ -2,7 +2,7 @@
 description: Work through sprint tickets autonomously via ticket-implementer subagents — each implements, runs its own independent review loop, and finalizes; stop before merge. Merge only the tickets I explicitly approve at the end.
 argument-hint: "[serial] [TICKET-IDs space separated | all]"
 disable-model-invocation: true
-allowed-tools: Bash(git *), Bash(gh *)
+allowed-tools: Bash(git *), Bash(gh *), Bash(bun run *)
 ---
 
 # Sprint
@@ -154,6 +154,31 @@ them as skipped with the reason. If nothing is ready, report that and stop.
 Otherwise report the planned order in one short list, then proceed
 immediately without waiting for confirmation (I can interrupt if the order
 looks wrong).
+
+## Progress file
+
+The run log is built for replay, not for reading. The human-facing view is
+`.sprint/progress-<sprint-id>.md` — a funnel, a waiting-on-you list, a ticket
+table, the waves, the decisions — regenerated deterministically from this
+run's own log by the watch skill's renderer. Start it in the background once
+the run log exists, before the first dispatch:
+
+```
+bun run ~/.claude/skills/watch/scripts/render-md.ts <repo root> --watch
+```
+
+Start it blindly and never wait on it, poll it, or supervise it — the script
+self-guards against duplicate watchers, so a run under /autopilot (which
+starts one too) is fine, and a live autopilot log simply outranks this run's
+in the rendered view. If bun or the watch skill is missing, say so in one line
+and carry on; the run is unaffected.
+
+**Never write or edit that file yourself.** It is derived output: everything
+in it comes from the log lines you already append, so a hand-written progress
+file is a second source of truth that can disagree with the log. If it reads
+wrong, the bug is a missing or malformed log line — fix that, and the file
+follows. The renderer finds this log by its `ORDER:` first line, which is one
+more reason that line is written before anything else.
 
 ## Execution: waves
 

@@ -1,6 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { buildState, parseAutopilotLog, parseSprintLog } from "./parse";
-import { mdCell, mermaidLabel, renderMarkdown, safeFeatureName } from "./render-md";
+import { buildSprintState, buildState, parseAutopilotLog, parseSprintLog } from "./parse";
+import {
+  looksLikeSprintLog,
+  mdCell,
+  mermaidLabel,
+  renderMarkdown,
+  safeFeatureName,
+  sprintIdAndRun,
+} from "./render-md";
 
 const NOW = new Date("2026-08-10T12:00:00Z");
 
@@ -102,5 +109,78 @@ describe("sanitizers", () => {
 
   test("table cells escape pipes and tags", () => {
     expect(mdCell("a|b <script>")).toBe("a\\|b &lt;script>");
+  });
+});
+
+import { SPRINT_STANDALONE } from "./fixtures";
+
+describe("renderMarkdown — sprint view", () => {
+  const md = () =>
+    renderMarkdown(
+      buildSprintState({
+        sprint: parseSprintLog(SPRINT_STANDALONE),
+        sprintId: "sprint-3",
+        sprintLogPath: ".sprint/sprint-3.md",
+        sprintRun: 1,
+        roundFiles: ["review-ABC-9-r1.md"],
+        qaSignals: [],
+        now: NOW,
+      }),
+    );
+
+  test("sprint header, funnel, tickets, waves, decisions", () => {
+    const out = md();
+    expect(out).toContain("# Sprint progress — sprint-3");
+    expect(out).not.toContain("(run ");
+    expect(out).toContain("**Mode:** serial");
+    expect(out).toContain("Source: `.sprint/sprint-3.md`");
+    expect(out).toContain("## ⏸ Waiting on you");
+    expect(out).toContain("- merge decision (ABC-12 #204)");
+    expect(out).toContain('n1["working 1"]');
+    expect(out).toContain('n2["ready to merge 1"]');
+    expect(out).toContain('n4["parked 1"]');
+    expect(out).toContain("class n3 pending"); // nothing merged yet
+    expect(out).toContain("| `ABC-12` | 🟡 ready-to-merge | #204 | 2 |");
+    expect(out).toContain("- **wave 1** — `ABC-12` `ABC-15`");
+    expect(out).toContain("## Decisions");
+    expect(out).toContain("Raw log tail");
+    // the feature pipeline belongs to autopilot only
+    expect(out).not.toContain("plan-sprint");
+  });
+
+  test("re-runs are labelled by run number", () => {
+    const out = renderMarkdown(
+      buildSprintState({
+        sprint: parseSprintLog(SPRINT_STANDALONE),
+        sprintId: "sprint-3",
+        sprintRun: 2,
+        roundFiles: [],
+        qaSignals: [],
+        now: NOW,
+      }),
+    );
+    expect(out).toContain("# Sprint progress — sprint-3 (run 2)");
+  });
+});
+
+describe("sprint log discovery", () => {
+  test("ORDER: as the first entry is the signal, stamps allowed", () => {
+    expect(looksLikeSprintLog("ORDER: ABC-1\nABC-1 dispatched\n")).toBe(true);
+    expect(looksLikeSprintLog("\n[2026-08-10 09:12] ORDER: ABC-1\n")).toBe(true);
+    expect(looksLikeSprintLog("# notes\nORDER: ABC-1\n")).toBe(false);
+    expect(looksLikeSprintLog("")).toBe(false);
+  });
+
+  test("a -N suffix is a run number only when the base log exists", () => {
+    const dir = ["sprint-3.md", "sprint-3-2.md"];
+    expect(sprintIdAndRun("sprint-3.md", dir)).toEqual({ id: "sprint-3", run: 1 });
+    expect(sprintIdAndRun("sprint-3-2.md", dir)).toEqual({ id: "sprint-3", run: 2 });
+    // no "sprint.md" in the directory → "sprint-3" is the id, not run 3
+    expect(sprintIdAndRun("sprint-3.md", ["sprint-3.md"])).toEqual({ id: "sprint-3", run: 1 });
+    // date fallback ids survive the same way
+    expect(sprintIdAndRun("2026-08-19.md", ["2026-08-19.md"])).toEqual({
+      id: "2026-08-19",
+      run: 1,
+    });
   });
 });
