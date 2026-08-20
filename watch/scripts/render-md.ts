@@ -421,7 +421,13 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
   const referenced = referencedSprintLogs(autopilotLogs.map((f) => f.text));
   const standalone = sprintLogs.filter((f) => !referenced.has(f.name));
   const activeAutopilot = autopilotLogs.find((f) => isActive(f.text));
-  const activeSprint = standalone.find((f) => isActive(f.text));
+  // A live run is one still being appended to, so it is necessarily the
+  // NEWEST log here — only that one can be active. Searching all of them for
+  // a missing terminator instead let an abandoned run (stopped on a gate, no
+  // RUN COMPLETE ever appended) outrank every run that finished after it, for
+  // good: one such log pinned a project's view to a three-week-old sprint.
+  const newestSprint = standalone[0];
+  const activeSprint = newestSprint && isActive(newestSprint.text) ? newestSprint : undefined;
 
   const chosenAutopilot = activeAutopilot ?? (activeSprint ? undefined : autopilotLogs[0]);
   if (chosenAutopilot) {

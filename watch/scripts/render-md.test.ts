@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { buildSprintState, buildState, parseAutopilotLog, parseSprintLog } from "./parse";
+import { mkdtempSync, writeFileSync, mkdirSync, utimesSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  collectState,
   looksLikeSprintLog,
   mdCell,
   mermaidLabel,
@@ -201,5 +205,55 @@ describe("sprint log discovery", () => {
       id: "2026-08-19",
       run: 1,
     });
+  });
+});
+
+// A run that stopped on a gate and never got its RUN COMPLETE (redesign-8.md
+// in the wild) used to read as the one "active" log forever, pinning the view
+// to its family and outranking every run that came after it.
+describe("collectState — run selection", () => {
+  const project = (files: Record<string, string>): string => {
+    const dir = mkdtempSync(join(tmpdir(), "watch-test-"));
+    mkdirSync(join(dir, ".sprint"));
+    // mtime decides which log is newest, so stagger it explicitly rather
+    // than relying on write order landing on distinct filesystem timestamps
+    Object.entries(files).forEach(([name, text], i) => {
+      const path = join(dir, ".sprint", name);
+      writeFileSync(path, text);
+      const t = new Date(2026, 0, 1 + i);
+      utimesSync(path, t, t);
+    });
+    return dir;
+  };
+
+  test("an abandoned older log doesn't claim the view, same family", async () => {
+    const dir = project({
+      "s.md": "ORDER: A-1\nA-1 dispatched\nA-1 merged\nRUN COMPLETE\n",
+      "s-2.md": "ORDER: A-2\nA-2 dispatched\nNOTE: stopped on a gate, never terminated\n",
+      "s-3.md": "# §4 — the run I just did\nORDER: A-3\nA-3 dispatched\nA-3 merged\nRUN COMPLETE\n",
+    });
+    const { state } = await collectState(dir);
+    expect(state?.sourceLog).toBe(".sprint/s-3.md");
+    expect(state?.title).toBe("§4 — the run I just did");
+    expect(state?.run).toBe("complete");
+  });
+
+  test("an unterminated newest run still owns the view", async () => {
+    const dir = project({
+      "s.md": "ORDER: A-1\nA-1 dispatched\nA-1 merged\nRUN COMPLETE\n",
+      "s-2.md": "ORDER: A-2\nA-2 dispatched\n",
+    });
+    const { state } = await collectState(dir);
+    expect(state?.sourceLog).toBe(".sprint/s-2.md");
+    expect(state?.run).toBe("running");
+  });
+
+  test("an abandoned older log doesn't claim the view, different family", async () => {
+    const dir = project({
+      "sprint-06.md": "ORDER: A-1\nA-1 dispatched\nDECISION: filed a follow-up, never terminated\n",
+      "sprint-09.md": "ORDER: A-9\nA-9 dispatched\nA-9 merged\nRUN COMPLETE\n",
+    });
+    const { state } = await collectState(dir);
+    expect(state?.sourceLog).toBe(".sprint/sprint-09.md");
   });
 });
