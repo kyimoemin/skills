@@ -535,3 +535,88 @@ describe("sprint view — review regressions", () => {
     expect(parseSprintLog("ORDER: SERIAL-1, SERIAL-2 (serial)\n").serial).toBe(true);
   });
 });
+
+// Forms real runs write that the documented example never showed. Lifted
+// from .sprint/redesign-13.md, where every ticket read "in-review" hours
+// after the run had merged all three and appended RUN COMPLETE.
+describe("sprint view — merge-phase drift", () => {
+  const build = (log: string) =>
+    buildSprintState({
+      sprint: parseSprintLog(log),
+      sprintId: "redesign",
+      roundFiles: ["review-DI-61-r1.md", "review-DI-61-r2.md"],
+      qaSignals: [],
+      now: new Date("2026-08-20T12:00:00Z"),
+    });
+
+  test("a complete return is ready-to-merge without the literal token", () => {
+    const s = build(
+      "ORDER: DI-59\nDI-59 dispatched\n" +
+        "DI-59 returned complete, PR #90, 1 review round (r1 clean, 0 findings), " +
+        "head 007a306, In Review, tracker: docs/sprints/TRACKER.md DI-59 row\n",
+    );
+    expect(s.tickets[0].state).toBe("ready-to-merge");
+    expect(s.tickets[0].pr?.number).toBe(90);
+  });
+
+  test("MERGE: lines merge the tickets named before the word merged", () => {
+    const p = parseSprintLog(
+      "ORDER: DI-59, DI-63\nDI-59 dispatched\n" +
+        "MERGE: DI-59 PR #90 merged into redesign at 42a72ae. Branch deleted, unblocks DI-63\n" +
+        "MERGE: close-tracking PR #91 merged into redesign at b21f0a3, branch deleted\n",
+    );
+    expect(p.tickets["DI-59"].mergedInLog).toBe(true);
+    expect(p.tickets["DI-63"]).toBeUndefined();
+  });
+
+  test("a qualifier before `returned` still registers the return", () => {
+    const s = build(
+      "ORDER: DI-61\nDI-61 dispatched\n" +
+        "DI-61 rebase-dispatch returned complete, PR #88, r3 this dispatch, new head aa901cf, In Review\n" +
+        "MERGE: DI-61 PR #88 merged into redesign at 3c6c09c\n",
+    );
+    expect(s.tickets[0].state).toBe("merged");
+    expect(s.tickets[0].reviewRounds).toBe(2); // round files, no "N review rounds" in the line
+  });
+
+  test("`parked` mentioning an earlier return is not read as a return", () => {
+    const p = parseSprintLog(
+      "ORDER: DI-1\nDI-1 dispatched\nDI-1 parked, returned blocked earlier this run\n",
+    );
+    expect(p.tickets["DI-1"].parked).toBe(true);
+    expect(p.tickets["DI-1"].returned).toBeUndefined();
+  });
+
+  test("the heading above ORDER: is the run's title, not an event", () => {
+    const p = parseSprintLog(
+      "# Redesign run 13 — §4 of the wave-3.5 plan\nORDER: DI-59, DI-60\nDI-59 dispatched\n",
+    );
+    expect(p.title).toBe("Redesign run 13 — §4 of the wave-3.5 plan");
+    expect(p.order).toEqual(["DI-59", "DI-60"]);
+  });
+
+  test("a run title and a section heading join; headings below ORDER: don't", () => {
+    const p = parseSprintLog(
+      "# Redesign run 11\n\n## §2 — token completion\nORDER: DI-53\n" +
+        "## not a title\nDI-53 dispatched\n",
+    );
+    expect(p.title).toBe("Redesign run 11 · §2 — token completion");
+  });
+
+  test("a finished run reads as merged end to end", () => {
+    const s = build(
+      "# §4 — wave-3.5 DI track\nORDER: DI-59, DI-60, DI-61\n" +
+        "WAVE: DI-59 DI-60 DI-61\nDI-59 dispatched\nDI-60 dispatched\nDI-61 dispatched\n" +
+        "DI-60 returned complete, PR #89, 1 review round, head fc8be3e, In Review\n" +
+        "DI-59 returned complete, PR #90, 1 review round, head 007a306, In Review\n" +
+        "DI-61 returned complete, PR #88, 2 review rounds, head a3655b1, In Review\n" +
+        "MERGE: DI-59 PR #90 merged into redesign at 42a72ae\n" +
+        "MERGE: DI-60 PR #89 merged into redesign at 5f0bd13\n" +
+        "MERGE: DI-61 PR #88 merged into redesign at 3c6c09c\nRUN COMPLETE\n",
+    );
+    expect(s.title).toBe("§4 — wave-3.5 DI track");
+    expect(s.run).toBe("complete");
+    expect(s.tickets.map((t) => t.state)).toEqual(["merged", "merged", "merged"]);
+    expect(s.awaiting).toEqual([]);
+  });
+});

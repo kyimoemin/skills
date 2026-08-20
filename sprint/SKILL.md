@@ -62,7 +62,11 @@ highest-numbered one:
 - **Exists, ends in `RUN COMPLETE`** → that run is closed. Start a new log
   at the next free `<sprint-id>-2.md`, `-3.md` and so on. Never append past
   a `RUN COMPLETE`; a log with a terminator in the middle can't be replayed.
-- **No file** → create it, and write the `ORDER:` line as its first entry.
+- **No file** → create it. Write a one-line `# <what this run is>` heading
+  naming the run as I'd name it (the plan section, the track — `# §4 —
+  wave-3.5 DI track`), then the `ORDER:` line. The heading is the only
+  thing that can tell the progress file what was run: `<sprint-id>-<N>.md`
+  names the family, never the section.
 
 The startup decision tree (structure only — the bullets above are the
 rulebook):
@@ -70,7 +74,7 @@ rulebook):
 ```mermaid
 flowchart TB
     look([highest-numbered log for this sprint]) --> exists{exists?}
-    exists -- "no" --> create["create log, write ORDER: line"]
+    exists -- "no" --> create["create log: heading + ORDER: line"]
     exists -- "yes" --> done{"ends in RUN COMPLETE?"}
     done -- "yes" --> next["run closed: new log at next -N suffix"]
     done -- "no" --> mine{"ORDER: shares a ticket
@@ -99,6 +103,7 @@ No prose, no pasted reports.
 Use this format, so any later run can replay a log it didn't write:
 
 ```
+# sprint 4 — checkout hardening
 ORDER: ABC-12, ABC-15, ABC-9
 WAVE: ABC-12 ABC-15
 ABC-12 dispatched
@@ -111,10 +116,30 @@ WAVE: ABC-9
 ABC-9 dispatched
 ABC-9 returned complete, PR #207, 1 review round, head 9c4d1e2, ready-to-merge, tracker: Trello/Sprint Board
 RUN STOPPED awaiting: ABC-15
+ABC-12 merged, PR #204, squashed to e7b3f02, branch deleted
 ```
 
-Replayed, that says ABC-12 and ABC-9 are finalized and awaiting merge, and
-ABC-15 is parked on a question only I can answer.
+Replayed, that says ABC-12 is merged, ABC-9 is finalized and awaiting my
+merge decision, and ABC-15 is parked on a question only I can answer.
+
+**Three of those lines are read strictly** — they are what the progress file
+derives ticket state from, and a line it can't read leaves a finished ticket
+rendered as still in review for the life of the run:
+
+- **merged:** `<ticket> merged, <details>` — the ticket id FIRST, then the
+  word `merged`. (`MERGE: <ticket> PR #N merged …` is also read, but the
+  documented form is the one to write.)
+- **returned:** `<ticket> returned complete|blocked|failed, <details>` — one
+  qualifier word may sit between the id and `returned` (`ABC-12
+  rebase-dispatch returned complete`), no more. `complete` alone means
+  awaiting merge; the `ready-to-merge` token is a courtesy, not a flag.
+- **heading:** above `ORDER:` only. One is enough; if you write both a run
+  title and a section heading they join (`Run 11 · §2 — token completion`).
+  Any heading below `ORDER:` is prose, not a title.
+
+Everything else (`NOTE:`, `FINDING:`, `CORRECTION:` …) is free-form trail —
+write as much of it as the run needs.
+
 `RUN COMPLETE` is the only hard terminator — never append past it. `RUN
 STOPPED` means the run halted for my input — `at <ticket>` when it could
 not continue past that ticket, `awaiting: <tickets>` when everything
@@ -177,8 +202,9 @@ and carry on; the run is unaffected.
 in it comes from the log lines you already append, so a hand-written progress
 file is a second source of truth that can disagree with the log. If it reads
 wrong, the bug is a missing or malformed log line — fix that, and the file
-follows. The renderer finds this log by its `ORDER:` first line, which is one
-more reason that line is written before anything else.
+follows. The renderer finds this log by its `ORDER:` line — the first entry
+below the optional heading, and nothing else may precede it — which is one
+more reason that line is written before anything but the title.
 
 ## Execution: waves
 

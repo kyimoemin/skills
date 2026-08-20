@@ -40,8 +40,9 @@ Which run it renders, in precedence order: an unfinished
 `.sprint/autopilot-*.md` (autopilot's own resume rule) → else an
 unfinished standalone sprint run log → else the newest finished run,
 autopilot first. A sprint run log is identified by content — a `.md` in
-`.sprint/` whose first entry is the `ORDER:` line /sprint writes — so
-stray notes are never mistaken for one, and logs an autopilot log points
+`.sprint/` whose first entry is the `ORDER:` line /sprint writes, under an
+optional `# ...` heading naming the run (which becomes the progress file's
+title) — so stray notes are never mistaken for one, and logs an autopilot log points
 at (`STAGE: sprint started →`) belong to that feature run rather than
 counting as standalone.
 

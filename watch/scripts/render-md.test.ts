@@ -161,13 +161,32 @@ describe("renderMarkdown — sprint view", () => {
     );
     expect(out).toContain("# Sprint progress — sprint-3 (run 2)");
   });
+
+  test("a log that titles itself is headed by its own name, not the family id", () => {
+    const out = renderMarkdown(
+      buildSprintState({
+        sprint: parseSprintLog("# §4 — wave-3.5 DI track\n" + SPRINT_STANDALONE),
+        sprintId: "redesign",
+        sprintRun: 13,
+        roundFiles: [],
+        qaSignals: [],
+        now: NOW,
+      }),
+    );
+    expect(out).toContain("# Sprint progress — §4 — wave-3.5 DI track");
+    expect(out).not.toContain("redesign (run 13)");
+  });
 });
 
 describe("sprint log discovery", () => {
   test("ORDER: as the first entry is the signal, stamps allowed", () => {
     expect(looksLikeSprintLog("ORDER: ABC-1\nABC-1 dispatched\n")).toBe(true);
     expect(looksLikeSprintLog("\n[2026-08-10 09:12] ORDER: ABC-1\n")).toBe(true);
-    expect(looksLikeSprintLog("# notes\nORDER: ABC-1\n")).toBe(false);
+    // a run may title itself above ORDER: — redesign-10/-11 in the wild did,
+    // and were invisible to the renderer while a heading disqualified a log
+    expect(looksLikeSprintLog("# Redesign run 10 — DI track\n\nORDER: DI-1\n")).toBe(true);
+    // prose before ORDER: still isn't a run log
+    expect(looksLikeSprintLog("some notes\nORDER: ABC-1\n")).toBe(false);
     expect(looksLikeSprintLog("")).toBe(false);
   });
 

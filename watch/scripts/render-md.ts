@@ -239,7 +239,10 @@ function renderSprint(state: DashState): string {
   const pending = state.tickets.length - working.length - ready.length - merged.length - stuck.length;
 
   const runNo = state.sprintRun && state.sprintRun > 1 ? ` (run ${state.sprintRun})` : "";
-  lines.push(`# Sprint progress — ${mdCell(state.feature ?? "?")}${runNo}`);
+  // a log that titled itself names the run better than its filename family
+  // ever can — `<sprint-id>` is only ever the family, never the section run
+  const heading = state.title ?? `${state.feature ?? "?"}${runNo}`;
+  lines.push(`# Sprint progress — ${mdCell(heading)}`);
   lines.push("");
   lines.push(
     `**Run:** ${state.run}` +
@@ -298,10 +301,11 @@ function renderSprint(state: DashState): string {
 
 /** A sprint run log has no name convention (`<sprint-id>.md` is whatever
  *  the sprint is called), so it is identified by content: /sprint writes
- *  `ORDER:` as the log's first entry. Only names that are unambiguously
- *  something else are excluded up front — a sprint legitimately named
- *  `qa-hardening` must still be found, so qa-* files are ruled out by
- *  the content check, not by prefix. */
+ *  `ORDER:` as the log's first entry, optionally under a `# ...` heading
+ *  naming the run. Only names that are unambiguously something else are
+ *  excluded up front — a sprint legitimately named `qa-hardening` must
+ *  still be found, so qa-* files are ruled out by the content check, not
+ *  by prefix. */
 const NOT_A_SPRINT_LOG = /^(?:autopilot-|progress-|\.)/;
 const ROUND_FILE = /^review-.+-r\d+\.md$/;
 
@@ -309,6 +313,8 @@ export function looksLikeSprintLog(text: string): boolean {
   for (const raw of text.split("\n")) {
     const line = stripStamp(raw.trim());
     if (!line) continue;
+    // a heading may title the run above ORDER:; anything else may not
+    if (/^#{1,6}\s/.test(line)) continue;
     return /^ORDER:/.test(line);
   }
   return false;

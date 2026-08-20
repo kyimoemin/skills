@@ -62,6 +62,7 @@ export interface TicketEvents {
 
 export interface SprintParse {
   tickets: Record<string, TicketEvents>;
+  title?: string; // a leading "# ..." heading: the run's own name for itself
   decisions: string[];
   run: "running" | "stopped" | "complete";
   stoppedOn?: string; // text after "RUN STOPPED at/awaiting:"
@@ -99,6 +100,7 @@ export interface TicketState {
 export interface DashState {
   kind: "autopilot" | "sprint";
   feature?: string; // autopilot: feature name; sprint: sprint id
+  title?: string; // sprint kind only: the log's own heading, when it has one
   mode?: string;
   run: "running" | "stopped" | "complete";
   awaiting: string[];
@@ -361,6 +363,17 @@ export function parseSprintLog(text: string): SprintParse {
     if (!line) continue;
     let m: RegExpMatchArray | null;
 
+    if ((m = line.match(/^#{1,6}\s+(.+?)\s*$/))) {
+      // A run may name itself with a heading above ORDER: ("# Redesign run
+      // 10 — wave-3.5 DI track"). That name says what was actually run —
+      // a plan section, a track — which the `<sprint-id>-<N>.md` filename
+      // cannot. Real logs write a run title AND a section heading, so the
+      // preamble's headings join; anything below ORDER: is prose.
+      if (!out.order.length) {
+        out.title = out.title ? `${out.title} · ${m[1].trim()}` : m[1].trim();
+      }
+      continue;
+    }
     if ((m = line.match(/^ORDER:\s*(.*)$/))) {
       resume();
       out.order = ticketIds(m[1]);
@@ -382,6 +395,18 @@ export function parseSprintLog(text: string): SprintParse {
     if ((m = line.match(/^RUN STOPPED\s+(?:at|awaiting:)\s*(.*)$/))) {
       out.run = "stopped";
       out.stoppedOn = m[1].trim() || undefined;
+      continue;
+    }
+    if ((m = line.match(/^MERGED?:\s*(.+)$/i))) {
+      // The merge phase's own line. The documented form is `<ticket>
+      // merged, ...` (handled below), but runs also write `MERGE: <ticket>
+      // PR #N merged into <base> at <sha>` — the same event. Unparsed, a
+      // merged ticket stays stuck at in-review for the life of the file.
+      // Ids are read from the text BEFORE the word "merged", so a trailing
+      // "unblocks ABC-9" can't mark an unmerged ticket merged.
+      resume();
+      const head = m[1].split(/\bmerged\b/i)[0];
+      for (const id of ticketIds(head.trim() ? head : m[1])) get(id).mergedInLog = true;
       continue;
     }
     if ((m = line.match(/^DECISION:\s*(.+)$/))) {
@@ -415,7 +440,10 @@ export function parseSprintLog(text: string): SprintParse {
       t.readyToMerge = false;
       continue;
     }
-    if ((m = rest.match(/^returned\s+(complete|blocked|failed)\b:?\s*(.*)$/))) {
+    // one optional qualifier word ("DI-60 rebase-dispatch returned complete")
+    // — bounded to \w and - so it cannot swallow "parked," and misread a
+    // parked line that merely mentions an earlier return
+    if ((m = rest.match(/^(?:[A-Za-z][\w-]*\s+)?returned\s+(complete|blocked|failed)\b:?\s*(.*)$/))) {
       t.returned = m[1] as TicketEvents["returned"];
       const tail = m[2];
       if (t.returned !== "complete") t.blockedReason = tail.trim() || undefined;
@@ -560,7 +588,11 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
     } else if (ev?.parked) {
       t.state = "parked";
       t.detail = ev.blockedReason ?? (ev.dependsOn ? `depends on ${ev.dependsOn}` : undefined);
-    } else if (ev?.returned === "complete" && ev.readyToMerge) {
+    } else if (ev?.returned === "complete") {
+      // `complete` already means implemented, reviewed clean and finalized,
+      // and /sprint stops before merge — so the ticket is waiting on a merge
+      // decision whether or not the return line spelled "ready-to-merge".
+      // Gating on the token left most finished tickets reading "in-review".
       t.state = "ready-to-merge";
     } else if (ev?.returned === "blocked" || ev?.returned === "failed") {
       t.state = ev.returned;
@@ -688,6 +720,7 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
   return {
     kind: "sprint",
     feature: inp.sprintId,
+    title: sp.title,
     mode: sp.serial ? "serial" : undefined,
     run: sp.run,
     awaiting,
