@@ -27,7 +27,7 @@ order; stop and report if a check fails.
    acceptance criteria, labels/priority — and show it to me. If it depends on
    or is blocked by existing tickets, record the link the way this project
    does (`blocked` label, "depends on #N" in the body, tracker link type) —
-   that's the signal standup and start-ticket read to judge what's ready.
+   that's the signal standup and sprint's ordering read to judge what's ready.
    File only on my explicit go-ahead.
 5. **File it:** create the tracker issue, or append to the backlog file in
    the project's format. If repo files changed, commit them

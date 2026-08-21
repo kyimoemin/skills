@@ -206,6 +206,48 @@ follows. The renderer finds this log by its `ORDER:` line — the first entry
 below the optional heading, and nothing else may precede it — which is one
 more reason that line is written before anything but the title.
 
+## The run, end to end
+
+Structure only — the sections around it are the rulebook.
+
+```mermaid
+flowchart TB
+    start(["log ready, ORDER: planned"]) --> wave{plan next wave}
+    wave --> disp["dispatch the wave in ONE message
+cap 3, worktree-isolated"]
+    disp --> impl[["ticket-implementer per ticket
+branch, code + tests, PR, finalize"]]
+    impl <-- "findings / fixes" --> rev[["ticket-reviewer
+fresh per round, max 3"]]
+    impl --> ret{return status}
+    ret -- "blocked / failed" --> park["park it and every dependent
+log the reason, never fix it yourself"]
+    ret -- "complete" --> rec["append return line
+card at ready-to-merge, if the board has it"]
+    park --> left{runnable tickets left?}
+    rec --> left
+    left -- "yes" --> wave
+    left -- "no, some parked" --> stopped(["RUN STOPPED awaiting
+needs my answers"])
+    left -- "no, all returned" --> stop([summary, then STOP])
+    stop --> word{{"I say merge all, or name tickets"}}
+    word --> verify["re-verify: CI green, mergeable,
+head SHA matches the log"]
+    verify -- "conflicts" --> redisp["re-dispatch implementer
+resume: rebase — it re-reviews, new SHA"]
+    redisp --> verify
+    verify -- "ok" --> merged["gh pr merge, delete branch"]
+    merged --> close[["close-tracking dispatch
+card moves to done"]]
+    close --> all{"every named ticket merged
+and none parked?"}
+    all -- "no" --> stop
+    all -- "yes" --> complete([append RUN COMPLETE])
+    stopped --> arch["snapshot .sprint/ to refs/sprint/archive
+(also after every merge phase)"]
+    complete --> arch
+```
+
 ## Execution: waves
 
 Work through the tickets in WAVES. Partition the ordered list using the
@@ -336,8 +378,7 @@ unterminated so a later run picks those tickets up instead of starting
 fresh on top of them.
 
 Tickets I didn't name stay open — list them at the end as still awaiting my
-decision. (For tickets closed outside a sprint run, `/close-ticket` still
-exists.)
+decision.
 
 ## Syncing `.sprint/` to the archive ref
 

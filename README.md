@@ -1,6 +1,6 @@
 # Dev-workflow suite
 
-Fifteen Claude Code skills (this repo) plus three subagents
+Fourteen Claude Code skills (this repo) plus three subagents
 ([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run a
 full software lifecycle: app idea → vision → (new project: bootstrap) →
 feature brief → UI design → technical design → tickets → sprint → QA →
@@ -97,7 +97,8 @@ interrupted run resumes where it stopped.
 | Ship | `/deploy` | Discover the release mechanism; CI + QA gates; ship on explicit go-ahead; verify live |
 | Learn | `/retro` | Turn run logs, findings, and QA results into 1–3 evidenced process changes — filed as project tickets, or as proposed edits to the suite's own skill/agent docs when the pattern indicts the workflow |
 | Anytime | `/standup` | Read-only: where things stand, grouped by who can act, ends with a `/sprint` line |
-| Anytime | `/add-ticket` `/start-ticket` `/close-ticket` | One-off capture / interactive single ticket / land a PR outside a sprint run |
+| Anytime | `/add-ticket` | One-off capture of a bug, idea, or task — discovers the tracker's conventions, checks for duplicates, files on go-ahead |
+| Anytime | `/watch` | Writes `.sprint/progress-<sprint-id>.md` for the live run — funnel, waiting-on-you list, ticket table, derived read-only from the run's own log; `--watch` keeps it live |
 | Drive | `/autopilot` | Run the whole per-feature loop (shape → … → retro) hands-free; stage questions propagate to you; `merge=auto\|manual` flag; resumable via `.sprint/autopilot-<feature>.md` progress log |
 
 ## The handshakes that hold it together

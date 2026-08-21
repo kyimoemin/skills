@@ -3,10 +3,8 @@
 !/.gitignore
 !/README.md
 !/add-ticket/
-!/close-ticket/
 !/plan-sprint/
 !/standup/
-!/start-ticket/
 !/sprint/
 !/architect/
 !/qa/
