@@ -366,8 +366,10 @@ approved ticket in order:
 3. **Close tracking:** dispatch a fresh `ticket-implementer` with a
    `close-tracking` prompt — just the ticket id, PR, repo path, and the
    tracker location from the run log. It needs nothing else; don't resend
-   the ticket body. If the return line recorded no tracker, skip this
-   dispatch and note it in the report — there is nothing to close.
+   the ticket body. It commits a file-based tracker edit straight to the
+   base branch — expect no second PR and no review round from it. If the
+   return line recorded no tracker, skip this dispatch and note it in the
+   report — there is nothing to close.
 4. **Report** one line: ticket, PR merged, tracking closed — and append the
    merge to the run log.
 
