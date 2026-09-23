@@ -15,13 +15,23 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
      `ROADMAP` markdown. Treat the backlog/open list as the source of truth
      for what work exists and the done/changelog as recently shipped —
      Next-up's reporting scope is decided in step 3, not here.
+   - The /sprint run log, if `.sprint/` exists — the most recently
+     modified `.sprint/*.md` with an `ORDER:` line. It holds what the
+     tracker may not: a ticket's last line decides its state —
+     `parked` or `returned blocked` → Needs input, with the logged
+     question as the gap; `parked, depends on <id>` → Blocked;
+     `returned failed` → Needs you; `returned complete` with no later
+     `merged` line → awaiting merge. No `.sprint/` → skip this; don't
+     restore it from the archive ref (read-only).
    - While reading, note dependency/blocked signals: `blocked` labels,
      "depends on #N" in issue bodies, checklist items pointing at other
      tickets — step 3 needs these to judge what's ready to start.
    - If you find no tracking, say so and rely on git state alone.
 2. **Git state.** Current branch, `git status`, last few commits — plus ALL
-   in-flight work, not just the checked-out branch: `git branch` for local
-   branches ahead of main, `gh pr list` for open PRs. Match branches and PRs
+   in-flight work, not just the checked-out branch: `git branch
+   --no-merged <base>` for local branches not yet merged into the
+   integration branch (the repo's default, unless the project runs a
+   long-lived line), `gh pr list` for open PRs. Match branches and PRs
    to tickets by the ticket id in the branch name or PR title. Note each
    PR's review state and `gh pr checks` — approved-but-unmerged,
    changes-requested, or red CI often _is_ the immediate next action.
@@ -47,7 +57,8 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
      section if empty.
    - **In progress:** every in-flight ticket — the checked-out branch plus
      any other branch or open PR matched to a ticket in step 2 — with
-     uncommitted changes and PR/CI state per ticket.
+     uncommitted changes and PR/CI state per ticket. A ticket awaiting
+     merge goes under Needs you instead, not both.
    - **Next up:** the not-done tickets in scope (see Scope below), grouped
      by who can act on them.
      Render each non-empty group as a `###` heading with a count —
@@ -72,23 +83,29 @@ Read-only. Make no edits, commits, or pushes. Gather, then report.
        milestone, backlog order — in that preference).
      - Don't repeat tickets already shown under "In progress".
 
-     Groups are judged from the ticket text alone — "looks dispatchable" is
-     not a guarantee; an implementer can still hit hidden ambiguity and
-     block mid-flight. Groups, in this order:
+     Groups are judged from the ticket text and the run log — "looks
+     dispatchable" is not a guarantee; an implementer can still hit hidden
+     ambiguity and block mid-flight. Groups, in this order:
      - `### Dispatchable` — ready to hand to /sprint: unblocked, clear
        acceptance criteria, pure repo work a ticket-implementer can take
        end to end without a human. A ticket that already has a branch or
        open PR is NEVER Dispatchable — it goes under "In progress" (or
-       Needs you, if its PR is approved and waiting on merge); listing it
-       here would dispatch a second implementer onto in-flight work.
+       Needs you, if its PR is awaiting merge); listing it here would
+       dispatch a second implementer onto in-flight work. Nor is a ticket
+       the run log shows parked — re-dispatching it without an answer
+       blocks on the same question again.
      - `### Needs input` — could be dispatched once one specific
        gap is answered: ambiguous criteria, an undecided design/product
        choice, a missing value. Name the gap on the ticket's line
        (e.g. `— gap: which auth provider?`).
      - `### Needs you` — only the human can do it, /sprint
-       never can: merging an approved PR, account/access/credential
-       setup, decisions, anything outside the repo. Name the action on
-       the ticket's line (e.g. `— action: merge PR #41`).
+       never can: merging a PR awaiting merge (approved on GitHub, card in
+       a ready-to-merge column, or `returned complete` in the run log),
+       account/access/credential setup, decisions, anything outside the
+       repo. Name the action on the ticket's line. For a ticket /sprint
+       built, the merge goes through /sprint so its close-tracking dispatch
+       moves the card (`— action: merge via /sprint`); a GitHub-side merge
+       leaves the card stranded. Otherwise `— action: merge PR #41`.
      - `### Blocked` — waiting on another not-done ticket; nobody can
        act yet. Name what it's blocked on.
 
