@@ -1,6 +1,6 @@
 ---
 description: Work through sprint tickets autonomously via ticket-implementer subagents — each implements, runs its own independent review loop, and finalizes; stop before merge. Merge only the tickets I explicitly approve at the end.
-argument-hint: "[serial] [TICKET-IDs space separated | all]"
+argument-hint: "[unattended] [serial] [TICKET-IDs space separated | all]"
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *), Bash(bun run *)
 ---
@@ -32,12 +32,28 @@ NOT to `.gitignore`, which is a tracked file and would either dirty the tree
 **Check the `.sprint` write permission before the first dispatch.** Every
 reviewer writes a round file under `.sprint/`, deep inside a dispatch —
 where a permission prompt stalls the run, and an unattended run auto-denies
-it and loses the audit trail. So read `~/.claude/settings.json` and look for
-`Edit(**/.sprint/**)` in `permissions.allow`. If it isn't there, say so in
-one line before you dispatch anything and let me decide whether to add it —
-it widens your own permissions, so it is mine to grant, not yours to take.
-Note for me if I ask: a `Write(.sprint/**)` rule is never consulted; only
-`Edit(...)` path rules are, and they cover writes.
+it and loses the audit trail. So read `~/.claude/settings.json` and `~/.claude/settings.local.json` and
+look for `Edit(//**/.sprint/**)` in either one's `permissions.allow`. If it
+isn't there, say so in one line before you dispatch anything and let me
+decide whether to add it — it widens your own permissions, so it is mine to
+grant, not yours to take. A relative `Edit(**/.sprint/**)` is not enough:
+relative patterns resolve against the working directory, and a
+worktree-isolated implementer or reviewer writes to the MAIN checkout's
+`.sprint/`, outside its own. Note for me if I ask: a `Write(...)` path rule
+is never consulted; only `Edit(...)` path rules are, and they cover writes.
+
+Append to the run log with a quoted heredoc — not the Edit or Write tool,
+which rewrite the whole file, and not `echo '…'`, which breaks on the first
+apostrophe in a line:
+
+```
+cat >> .sprint/<sprint-id>.md <<'EOF'
+<line>
+EOF
+```
+
+`cat` is a read-only command and the redirect target is checked against
+that same `Edit` rule, so the append doesn't prompt.
 
 Before anything else, look for this sprint's run logs and take the
 highest-numbered one:
@@ -127,8 +143,7 @@ derives ticket state from, and a line it can't read leaves a finished ticket
 rendered as still in review for the life of the run:
 
 - **merged:** `<ticket> merged, <details>` — the ticket id FIRST, then the
-  word `merged`. (`MERGE: <ticket> PR #N merged …` is also read, but the
-  documented form is the one to write.)
+  word `merged`.
 - **returned:** `<ticket> returned complete|blocked|failed, <details>` — one
   qualifier word may sit between the id and `returned` (`ABC-12
   rebase-dispatch returned complete`), no more. `complete` alone means
@@ -140,25 +155,30 @@ rendered as still in review for the life of the run:
 Everything else (`NOTE:`, `FINDING:`, `CORRECTION:` …) is free-form trail —
 write as much of it as the run needs.
 
+**Decisions log** — cross-cutting decisions a later ticket needs to know
+about. These are entries in the run log like any other, prefixed `DECISION:`
+so you can pick them out when assembling a dispatch (step 2) — not a
+separate section, which would mean writing into the middle of an append-only
+file. It starts empty; a run that produces none is normal, so don't invent
+entries to fill it.
+
 `RUN COMPLETE` is the only hard terminator — never append past it. `RUN
 STOPPED` means the run halted for my input — `at <ticket>` when it could
 not continue past that ticket, `awaiting: <tickets>` when everything
-runnable finished and only parked tickets remain. A ticket whose last line
-is `parked` is waiting on my answer, not abandoned. Once I answer
-(in-session, or "merge all" after a stop), keep appending to the same log. If my answer
-resolves a blocked ticket's question, append it as `ANSWER: <ticket>
-<answer>` before re-dispatching — the re-dispatch carries it (step 2);
-without it the implementer hits the same ambiguity and blocks again. A log whose last
-line is neither was interrupted mid-ticket. If a replay finds every ticket
+runnable finished and only parked tickets remain. A log whose last line is
+neither `RUN COMPLETE` nor `RUN STOPPED` was interrupted mid-ticket.
+
+A ticket whose last line is `parked` is waiting on my answer, not
+abandoned. Once I answer (in-session, or "merge all" after a stop), keep
+appending to the same log. If my answer resolves a blocked ticket's
+question, append it as `ANSWER: <ticket> <answer>` before re-dispatching —
+the re-dispatch carries it (step 2); without it the implementer hits the
+same ambiguity and blocks again. If a replay finds every ticket
 finalized or merged and none interrupted, nothing is wrong — the run is
 awaiting my merge decision; report the open PRs and wait.
 
-The log records what happened in this RUN. The card column in a return
-line is a historical fact — where the implementer left the card — not the
-card's current state. Ticket status lives on the card and is owned by the
-implementer: when you need a card's current column, read it from the
-tracker — never treat a logged column as current, or the two will drift,
-which is the exact failure this split exists to prevent.
+A logged card column is where the implementer left the card, not where it
+is now — when you need the current column, read it from the tracker.
 
 Keep the log when the run finishes; it is the only record of planned-vs-
 finished and review effort, which the iteration retro needs.
@@ -166,7 +186,9 @@ finished and review effort, which the iteration retro needs.
 If no tickets were given: list the ready-to-start tickets from wherever this
 project tracks work (unblocked, dependencies done, in priority order) and
 stop for my confirmation. An unattended invocation (cron, scheduled) must
-say `unattended` in its prompt and pass explicit ticket ids — if a run
+pass the `unattended` keyword (`/sprint unattended ABC-1 ABC-2`) and
+explicit ticket ids — `unattended` and `serial` are keywords, never ticket
+ids. If a run
 marked `unattended` passes `all` or nothing, stop and report instead of
 planning work; a stale board could trigger a lot of unwanted work.
 
@@ -312,15 +334,14 @@ Per ticket:
    depends on <blocked-ticket>` line each, no dispatch — every remaining
    ticket that depends on a parked one; dependencies come from the order
    you planned, or from the tracker's blocker links when I named the
-   tickets explicitly. If nothing runnable remains, or you cannot tell
-   what depends on what, append `RUN STOPPED at <ticket>` and stop the
-   run. Never attempt a parked ticket yourself. The implementer has
+   tickets explicitly. If you cannot tell what depends on what, append
+   `RUN STOPPED at <ticket>` and stop the run. Never attempt a parked
+   ticket yourself. The implementer has
    already recorded the question or the unresolved findings on its card —
    don't move the card, don't repeat the comment. Report the park to me in
    one line (ticket, reason) and skip steps 4–5 for this ticket — its
    return line is already logged; those steps are for `complete` returns.
-   Parked tickets surface together again in the final summary; when the
-   last runnable ticket has returned and any ticket is parked, append
+   When the last runnable ticket has returned and any ticket is parked, append
    `RUN STOPPED awaiting: <tickets>` — the run needs my answers before
    those can re-dispatch.
 4. **Record:** append the return line to the run log — status, PR, review
@@ -391,8 +412,8 @@ dedicated ref, `refs/sprint/archive`, holding snapshots of the whole
 appending `RUN STOPPED` or `RUN COMPLETE`, and again after a merge phase:
 
 ```
-git fetch origin refs/sprint/archive 2>/dev/null || true   # parent on the latest snapshot
-parent=$(git rev-parse -q --verify FETCH_HEAD || git rev-parse -q --verify refs/sprint/archive || true)
+git fetch origin +refs/sprint/archive:refs/sprint/archive 2>/dev/null || true   # parent on the latest snapshot
+parent=$(git rev-parse -q --verify refs/sprint/archive || true)
 export GIT_INDEX_FILE=.git/sprint-sync-index
 git read-tree --empty && git add -f .sprint
 tree=$(git write-tree); unset GIT_INDEX_FILE
@@ -408,15 +429,9 @@ git update-ref refs/sprint/archive "$commit"
 git push origin refs/sprint/archive
 ```
 
-**Do not collapse the `if` back into `${parent:+-p $parent}`.** Under `zsh` —
-the default shell on macOS — an unquoted parameter expansion does **not**
-word-split, so that form passes `-p <sha>` as a *single* argument and
-`commit-tree` dies with `not a valid object name`. That failure is silent in
-the worst way: `update-ref` then gets an empty string, and the `push` prints
-`Everything up-to-date`, so the sync **reports success while having written
-nothing**. Skip two of those in a row and the audit trail is gone with no
-signal anywhere. Always read the push output: a real sync prints an
-`<old>..<new>` ref update. The guards above turn the silent failure loud.
+**Keep the explicit `if`** — zsh doesn't word-split `${parent:+-p $parent}`,
+so that shortcut silently writes nothing. Always read the push output: a
+real sync prints an `<old>..<new>` ref update.
 
 No remote → keep the local ref and note it in the report; never put
 `.sprint/` on a normal branch instead. Readers (/qa, /deploy, /retro)
@@ -427,10 +442,3 @@ Parts of this compound command (`export`, `rm`, the readers' `tar`) fall
 outside the `Bash(git *)` allowlist and may prompt — an unattended run
 that gets the sync denied must say so in its report, never silently skip
 it. If the prompts annoy, that's mine to fix by allowlisting, not yours.
-
-**Decisions log** — cross-cutting decisions a later ticket needs to know
-about. These are entries in the run log like any other, prefixed `DECISION:`
-so you can pick them out when assembling a dispatch (step 2) — not a
-separate section, which would mean writing into the middle of an append-only
-file. It starts empty; a run that produces none is normal, so don't invent
-entries to fill it.

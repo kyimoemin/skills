@@ -139,7 +139,7 @@ the sprint run log: kept off every branch, and append-only (a rewrite that dies
 mid-write can truncate the log; an append can only lose its own last
 line). Before the first write, add `.sprint/` to `.git/info/exclude` if
 it isn't there — never to `.gitignore`, which is a tracked file and
-would dirty the tree — and check for `Edit(**/.sprint/**)` in
+would dirty the tree — and check for `Edit(//**/.sprint/**)` in
 `permissions.allow` in `~/.claude/settings.json`; if it's missing, say
 so in one line and let me decide — it's mine to grant.
 

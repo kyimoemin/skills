@@ -58,7 +58,7 @@ tracked-file change would dirty the tree, tripping the verifier's own
 clean-tree check and the /deploy gate).
 
 Check the write permission too: every verifier writes its results under
-`.sprint/`, so if `Edit(**/.sprint/**)` is not in `permissions.allow` in
+`.sprint/`, so if `Edit(//**/.sprint/**)` is not in `permissions.allow` in
 `~/.claude/settings.json`, each dispatch stalls on a prompt. Say so in one
 line and let me decide whether to add it — don't add it yourself.
 
