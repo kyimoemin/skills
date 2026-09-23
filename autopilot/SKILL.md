@@ -110,7 +110,8 @@ rule here is about what may *enter*:
 ## Merge mode
 
 - `merge=manual` (default): stop at the sprint's merge gate, present the
-  ready PRs, and wait for my instruction — exactly as /sprint does today.
+  ready PRs, and wait for my instruction — exactly as a standalone
+  /sprint run does.
 - `merge=auto`: I have pre-authorized merges for this run. Supply the
   "merge all" go-ahead yourself, but only for tickets whose implementer
   returned `complete`, and /sprint's merge-phase re-verification still

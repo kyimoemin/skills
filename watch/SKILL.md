@@ -37,8 +37,9 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <project-path> [--watch]
 ## What the script derives (for your report, not for you to re-derive)
 
 Which run it renders, in precedence order: an unfinished
-`.sprint/autopilot-*.md` (autopilot's own resume rule) → else an
-unfinished standalone sprint run log → else the newest finished run,
+`.sprint/autopilot-*.md` (autopilot's own resume rule) → else the
+newest standalone sprint run log, if it is unfinished (an older
+unfinished log never outranks a newer one) → else the newest finished run,
 autopilot first. A sprint run log is identified by content — a `.md` in
 `.sprint/` whose first entry is the `ORDER:` line /sprint writes, under an
 optional `# ...` heading naming the run (which becomes the progress file's

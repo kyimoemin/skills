@@ -40,7 +40,11 @@ anything — it's the taste; these docs are the record.
    spacing scale, and the component idioms every feature reuses —
    buttons, inputs, dialogs, toasts, empty states, microcopy tone. Every
    later screen inherits these; anything left vague here gets invented
-   differently by each implementer.
+   differently by each implementer. Keep every proposed direction off the
+   stock defaults — a cream or off-white background, italic accent words
+   in headings, numbered "01/02/03" section labels, monospace labels,
+   pill-shaped buttons — unless I choose one. If a round of previews still
+   lands on some other stock look, name it and steer the next round away.
 3. **Show the language before writing it down.** Turn the decisions into
    self-contained HTML previews under `docs/design/ui/previews/` — one
    file per idiom group (palette, type, buttons, inputs, dialogs,
@@ -106,6 +110,6 @@ The project link is `https://claude.ai/design/p/<projectId>` (drop any
 alongside the id.
 
 Sync is best-effort. If DesignSync is unavailable or a permission is
-denied, say so and fall back to the old order — draft the doc, iterate
+denied, say so and fall back to doc-first — draft the doc, iterate
 there, and note in the report that the previews never reached Claude
 Design. The markdown docs remain the contract either way.

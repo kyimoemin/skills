@@ -297,8 +297,8 @@ Cap a wave at 3 concurrent implementers — a wider wave runs in batches of
 individual `dispatched` lines. Dispatch the whole wave in ONE message
 (parallel tool calls), each dispatch with worktree isolation
 (`isolation: "worktree"`) so no two implementers share a working tree; a
-single-ticket wave may run in the main checkout without isolation, as
-before. Wait for the entire wave to return before planning the next —
+single-ticket wave may run in the main checkout without isolation.
+Wait for the entire wave to return before planning the next —
 append each return line as it arrives, and apply step 3's parking to
 dependents when the next wave is planned. Merges still happen only in the
 merge phase, so `main` never moves under a running wave; branch collisions
