@@ -74,7 +74,9 @@ highest-numbered one:
   abandoned`. Without that line the implementer will block on the work it
   finds — correct behaviour on a normal dispatch, and an infinite loop on a
   resume. Skip the tickets the log records as finalized or merged, and never
-  reconstruct half-finished work yourself.
+  reconstruct half-finished work yourself. A ticket logged `merged` with no
+  `tracking closed` line still needs its close-tracking dispatch; an open
+  `TRACKING:` PR is awaiting my merge decision.
 - **Exists, ends in `RUN COMPLETE`** → that run is closed. Start a new log
   at the next free `<sprint-id>-2.md`, `-3.md` and so on. Never append past
   a `RUN COMPLETE`; a log with a terminator in the middle can't be replayed.
@@ -261,10 +263,15 @@ resume: rebase — it re-reviews, new SHA"]
     verify -- "ok" --> merged["gh pr merge, delete branch"]
     merged --> close[["close-tracking dispatch
 card moves to done"]]
-    close --> all{"every named ticket merged
-and none parked?"}
+    close --> all{"every named ticket merged,
+none parked, no tracking PR open?"}
     all -- "no" --> stop
-    all -- "yes" --> complete([append RUN COMPLETE])
+    all -- "yes" --> prune{"docs grew past the
+prune threshold?"}
+    prune -- "yes" --> prunedisp[["prune-proposal dispatch
+writes .sprint/prune-run-log-name.md"]]
+    prune -- "no" --> complete([append RUN COMPLETE])
+    prunedisp --> complete
     stopped --> arch["snapshot .sprint/ to refs/sprint/archive
 (also after every merge phase)"]
     complete --> arch
@@ -385,23 +392,86 @@ approved ticket in order:
 2. **Merge** with `gh pr merge` (repo's default strategy) and delete the
    ticket branch.
 3. **Close tracking:** dispatch a fresh `ticket-implementer` with a
-   `close-tracking` prompt — just the ticket id, PR, repo path, and the
+   `close-tracking` prompt — just the ticket ids, PRs, repo path, and the
    tracker location from the run log. It needs nothing else; don't resend
-   the ticket body. It commits a file-based tracker edit straight to the
-   base branch — expect no second PR and no review round from it. If the
-   return line recorded no tracker, skip this dispatch and note it in the
-   report — there is nothing to close.
+   the ticket body. On a card tracker, dispatch per ticket right after its
+   merge. On a file tracker, send ONE dispatch for every ticket this merge
+   phase merged, after the last merge — they edit the same file. The
+   implementer alone decides how the edit lands: a direct commit on the
+   base branch, or a tracking PR when the repo's rules forbid direct
+   commits there. Expect no review round either way. If the return line
+   recorded no tracker, skip this dispatch and note it in the report —
+   there is nothing to close.
 4. **Report** one line: ticket, PR merged, tracking closed — and append the
-   merge to the run log.
+   merge to the run log. When the close lands, append
+   `<ids> tracking closed, <commit sha | tracking PR #n>`.
+
+**A tracking PR** is a PR like any other: it merges only on my word.
+Append `TRACKING: PR #<n> open, closes <ids>, head <sha>`, report it as
+awaiting merge, and stop. On my approval, re-verify it as in step 1
+against that logged head, merge it as in step 2, and append
+`TRACKING: PR #<n> merged, <merge sha>`. Until then its tickets aren't
+closed — so after the open line, append `RUN STOPPED awaiting: tracking PR
+#<n>`. If it conflicts on re-verify (the version bump and changelog
+collide with every later PR), don't rebase it: close it, send a fresh
+close-tracking dispatch for the same ids, and log the new `TRACKING:` line.
 
 Append `RUN COMPLETE` only when no ticket in this run is still awaiting a
-merge decision and none is still parked. If you merged a subset and the
-rest are open or parked, the run is not finished — leave the log
-unterminated so a later run picks those tickets up instead of starting
-fresh on top of them.
+merge decision, none is still parked, and no tracking PR is still open. If
+you merged a subset and the rest are open or parked, the run is not
+finished — leave the log unterminated so a later run picks those tickets
+up instead of starting fresh on top of them. Run the wrap-up below first;
+it logs before the terminator.
 
 Tickets I didn't name stay open — list them at the end as still awaiting my
 decision.
+
+## Wrap-up: doc prune check
+
+Docs that agents read every run only grow unless something prunes them.
+Once every ticket is merged and closed (any tracking PR merged) and none is
+parked, and before `RUN COMPLETE`, check whether a prune pass is due.
+
+**The docs:** the root `CLAUDE.md` and `AGENTS.md`, and the plan doc they
+point to as the place to start. Not the tracker — tickets grow it by
+design — and never ledgers (`COMPLETED.md`, `CHANGELOG.md`, anything under
+an `archive/`).
+
+**The trigger:** `.sprint/prune-last` holds the base-branch commit of the
+last prune; base is the merged PRs' `baseRefName`. Read it from the archive
+first — fetch the ref as the archive sync does, then
+`git show refs/sprint/archive:.sprint/prune-last` — since another machine
+may have pruned since; fall back to the local file. If neither exists, the
+pass is due. Otherwise `git fetch origin <base>`, then
+`git diff --shortstat <prune-last sha> origin/<base> -- <docs>` — net
+growth is insertions minus deletions.
+
+- **Under 150 lines** → append `PRUNE: skipped, +<n> lines since <sha>` and
+  move on. Don't mention it in the report.
+- **150 or more** → dispatch the prune subagent (below) with
+  `run_in_background: false` — you need its return before `RUN COMPLETE`.
+  Then `git rev-parse origin/<base> > .sprint/prune-last`, append
+  `PRUNE: proposed <its one line>, .sprint/prune-<run log name>.md`, and put
+  that line in the final report. Updating `prune-last` now, not when cuts
+  merge, is deliberate: a proposal I decline must not come back next run.
+
+**The dispatch** is one fresh `general-purpose` subagent with the repo path,
+the doc list, the output path, and this brief: read each doc end to end;
+for every section, ask whether it still changes what an agent or I would
+do. Propose cuts, merges of sections that say the same thing, and notes
+that are outdated or contradicted by the code or a later decision — each
+with the lines affected and a one-line reason. Keep rules that record a
+past failure even when they look redundant, and say so rather than cut
+them; the story behind a rule isn't in the doc. Write the proposal to the
+output path in the main checkout (`.sprint/prune-<run log name>.md`, e.g.
+`prune-sprint-16-3.md`). Edit no tracked file. Return one line: cuts
+proposed and lines saved.
+
+You don't read the proposal — I do. Applying it is outside this run: when I
+approve some or all of it, dispatch a `general-purpose` subagent to make
+those cuts as an ordinary PR under the repo's workflow (branch, version
+bump and changelog if the repo requires them), and merge only on my word,
+like any PR.
 
 ## Syncing `.sprint/` to the archive ref
 
