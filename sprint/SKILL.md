@@ -262,7 +262,7 @@ resume: rebase — it re-reviews, new SHA"]
     redisp --> verify
     verify -- "ok" --> merged["gh pr merge, delete branch"]
     merged --> close[["close-tracking dispatch
-card moves to done"]]
+card moves to done, + approved prune cuts"]]
     close --> all{"every named ticket merged,
 none parked, no tracking PR open?"}
     all -- "no" --> stop
@@ -401,7 +401,9 @@ approved ticket in order:
    base branch, or a tracking PR when the repo's rules forbid direct
    commits there. Expect no review round either way. If the return line
    recorded no tracker, skip this dispatch and note it in the report —
-   there is nothing to close.
+   there is nothing to close. If approved prune cuts are waiting
+   (`.sprint/prune-approved`, see the wrap-up), add a `prune:` line to
+   this dispatch so they land in the same commit or tracking PR.
 4. **Report** one line: ticket, PR merged, tracking closed — and append the
    merge to the run log. When the close lands, append
    `<ids> tracking closed, <commit sha | tracking PR #n>`.
@@ -467,11 +469,30 @@ output path in the main checkout (`.sprint/prune-<run log name>.md`, e.g.
 `prune-sprint-16-3.md`). Edit no tracked file. Return one line: cuts
 proposed and lines saved.
 
-You don't read the proposal — I do. Applying it is outside this run: when I
-approve some or all of it, dispatch a `general-purpose` subagent to make
-those cuts as an ordinary PR under the repo's workflow (branch, version
-bump and changelog if the repo requires them), and merge only on my word,
-like any PR.
+You don't read the proposal — I do. Applying it is outside this run: it
+rides along with the NEXT run's close-tracking, so doc edits never get a
+PR (and a version bump) of their own, and closing tickets never waits on
+my doc review.
+
+- **When I approve** some or all of it (any time, in or after the run),
+  write `.sprint/prune-approved`: the proposal path on the first line, then
+  the approved item numbers (or `all`) and any changes I asked for, one per
+  line. It's a state file, not a log, so the Write tool is fine. Then sync
+  the archive — the next run may be on another machine.
+- **At the next close-tracking dispatch** (merge phase step 3), read
+  `prune-approved` from the archive first, falling back to the local file,
+  as for `prune-last`. If it exists, add to the prompt
+  `prune: apply <items> from <proposal path>` plus my changes. On a card
+  tracker, where a close makes no commit, there is nothing to ride on:
+  dispatch the cuts as a standalone PR instead (below).
+- **When that close lands** (direct commit, or tracking PR merged), delete
+  `.sprint/prune-approved`, append `PRUNE: applied <items> from <proposal>,
+  <sha | tracking PR #n>`, and sync.
+
+If I want the cuts in now rather than at the next close, dispatch a
+`general-purpose` subagent to make them as an ordinary PR under the repo's
+workflow (branch, version bump and changelog if the repo requires them),
+and merge only on my word, like any PR.
 
 ## Syncing `.sprint/` to the archive ref
 
