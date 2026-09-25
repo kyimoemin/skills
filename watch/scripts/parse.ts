@@ -66,6 +66,7 @@ export interface SprintParse {
   decisions: string[];
   run: "running" | "stopped" | "complete";
   stoppedOn?: string; // text after "RUN STOPPED at/awaiting:"
+  stopNote?: string; // the NOTE: written right before RUN STOPPED — the why
   order: string[]; // the ORDER: line — the run's planned ticket list
   serial: boolean; // ORDER: line ends "(serial)"
   waves: string[][]; // WAVE: lines, in dispatch order
@@ -95,6 +96,7 @@ export interface TicketState {
   reviewRounds?: number;
   qa?: string;
   qaFile?: string;
+  reviewFile?: string; // basename of the newest review round file on disk
 }
 
 export interface DashState {
@@ -104,6 +106,7 @@ export interface DashState {
   mode?: string;
   run: "running" | "stopped" | "complete";
   awaiting: string[];
+  stopNote?: string; // sprint kind only: why the run stopped, when it said
   groundwork: StageEntry[];
   iterations: Iteration[];
   featureTickets: string[];
@@ -114,6 +117,7 @@ export interface DashState {
   sourceLog?: string; // the log this view was derived from
   waves?: string[][]; // sprint kind only
   sprintRun?: number; // sprint kind only: the -N suffix, 1 when unsuffixed
+  repoUrl?: string; // https base of the GitHub origin, for PR links
   generatedAt: string;
 }
 
@@ -136,7 +140,8 @@ const LOOP_ORDER = [
 ];
 
 function ticketIds(text: string): string[] {
-  return text.split(/[\s,]+/).filter((t) => TICKET_RE.test(t));
+  // parens too: merge lines are written `MERGE: PR #106 (DI-66) merged …`
+  return text.split(/[\s,()]+/).filter((t) => TICKET_RE.test(t));
 }
 
 /** Split on top-level commas, respecting parentheses:
@@ -335,13 +340,18 @@ export function parseSprintLog(text: string): SprintParse {
     waves: [],
     rawTail: lines.filter(Boolean).slice(-15),
   };
+  // A stop line only names what it waits on; the reason is the NOTE: the
+  // run wrote just before it. Any event line in between makes it stale.
+  let lastNote: string | undefined;
   // a line appended after RUN STOPPED means the run picked back up —
   // without this, answered questions and subset merges stay in the
   // Waiting-on-you panel forever
   const resume = () => {
+    lastNote = undefined;
     if (out.run === "stopped") {
       out.run = "running";
       out.stoppedOn = undefined;
+      out.stopNote = undefined;
     }
   };
   const get = (id: string): TicketEvents => {
@@ -395,6 +405,11 @@ export function parseSprintLog(text: string): SprintParse {
     if ((m = line.match(/^RUN STOPPED\s+(?:at|awaiting:)\s*(.*)$/))) {
       out.run = "stopped";
       out.stoppedOn = m[1].trim() || undefined;
+      out.stopNote = lastNote;
+      continue;
+    }
+    if ((m = line.match(/^NOTE:\s*(.+)$/))) {
+      lastNote = m[1].trim();
       continue;
     }
     if ((m = line.match(/^MERGED?:\s*(.+)$/i))) {
@@ -429,7 +444,14 @@ export function parseSprintLog(text: string): SprintParse {
     const t = get(id);
     resume();
 
-    if (/^dispatched\b/.test(rest)) {
+    // Re-dispatches are written many ways ("re-dispatched", "amend
+    // re-dispatched", "resume-dispatch dispatched", "re-dispatch (agent
+    // resume) dispatched"); all of them put the ticket back to work. A
+    // close-tracking dispatch after merge is bookkeeping, not rework.
+    if (
+      /^(?:[A-Za-z][\w-]*\s+)?(?:\([^)]*\)\s+)?(?:[A-Za-z]+-)?dispatched\b/.test(rest) &&
+      !/^\S*tracking\b/i.test(rest)
+    ) {
       t.dispatched = true;
       t.parked = false;
       // finding: a re-dispatch (resume after an answer, conflict fix)
@@ -443,8 +465,8 @@ export function parseSprintLog(text: string): SprintParse {
     // one optional qualifier word ("DI-60 rebase-dispatch returned complete")
     // — bounded to \w and - so it cannot swallow "parked," and misread a
     // parked line that merely mentions an earlier return
-    if ((m = rest.match(/^(?:[A-Za-z][\w-]*\s+)?returned\s+(complete|blocked|failed)\b:?\s*(.*)$/))) {
-      t.returned = m[1] as TicketEvents["returned"];
+    if ((m = rest.match(/^(?:[A-Za-z][\w-]*\s+)?returned\s+(complete|blocked|failed)\b:?\s*(.*)$/i))) {
+      t.returned = m[1].toLowerCase() as TicketEvents["returned"];
       const tail = m[2];
       if (t.returned !== "complete") t.blockedReason = tail.trim() || undefined;
       const pr = tail.match(/\bPR\s*#(\d+)/i);
@@ -564,6 +586,7 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
 
     if (ev?.pr) t.pr = inp.prs?.[ev.pr] ?? { number: ev.pr };
     t.reviewRounds = Math.max(ev?.reviewRounds ?? 0, round ?? 0) || undefined;
+    if (round) t.reviewFile = `review-${id}-r${round}.md`;
     if (qa) {
       t.qaFile = qa.path;
       t.qa = qa.hint;
@@ -724,6 +747,7 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
     mode: sp.serial ? "serial" : undefined,
     run: sp.run,
     awaiting,
+    stopNote: sp.run === "stopped" ? sp.stopNote : undefined,
     groundwork: [],
     iterations: [],
     featureTickets: [...new Set(sp.order)],

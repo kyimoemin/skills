@@ -5,12 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   collectState,
+  githubUrl,
   looksLikeSprintLog,
   mdCell,
   mermaidLabel,
   renderMarkdown,
   safeFeatureName,
   sprintIdAndRun,
+  stamp,
 } from "./render-md";
 
 const NOW = new Date("2026-08-10T12:00:00Z");
@@ -255,5 +257,58 @@ describe("collectState — run selection", () => {
     });
     const { state } = await collectState(dir);
     expect(state?.sourceLog).toBe(".sprint/sprint-09.md");
+  });
+});
+
+describe("readability", () => {
+  const sprintState = (log: string, roundFiles: string[] = []) =>
+    buildSprintState({
+      sprint: parseSprintLog(log),
+      sprintId: "s",
+      roundFiles,
+      qaSignals: [{ ticket: "A-1", path: ".sprint/qa-A-1.md", hint: "pass" }],
+      now: NOW,
+    });
+
+  test("the updated stamp carries the date", () => {
+    expect(stamp("2026-08-10T12:00:00Z")).toMatch(/^2026-08-1[01] \d\d:\d\d$/);
+    expect(renderMarkdown(midRunState())).toMatch(/_updated 2026-08-1[01] \d\d:\d\d_/);
+  });
+
+  test("GitHub origins become PR bases; other hosts don't", () => {
+    expect(githubUrl("git@github.com:kyimoemin/Muse.git\n")).toBe("https://github.com/kyimoemin/Muse");
+    expect(githubUrl("https://github.com/on-ramp/swap-iframe")).toBe("https://github.com/on-ramp/swap-iframe");
+    expect(githubUrl("git@gitlab.com:a/b.git")).toBeUndefined();
+  });
+
+  test("PR, newest review round and QA file are links", () => {
+    const state = sprintState("ORDER: A-1\nA-1 dispatched\nA-1 returned complete, PR #7\nA-1 merged\n", [
+      "review-A-1-r1.md",
+      "review-A-1-r2.md",
+    ]);
+    state.repoUrl = "https://github.com/o/r";
+    expect(renderMarkdown(state)).toContain(
+      "| `A-1` | 🟢 qa-pass | [#7](https://github.com/o/r/pull/7) | [2](review-A-1-r2.md) | [pass](qa-A-1.md) |",
+    );
+  });
+
+  test("without a GitHub origin the PR stays plain text", () => {
+    const md = renderMarkdown(sprintState("ORDER: A-1\nA-1 dispatched\nA-1 returned complete, PR #7\n"));
+    expect(md).toContain("| #7 |");
+  });
+
+  test("a stopped run shows why it stopped under the waiting list", () => {
+    const md = renderMarkdown(sprintState("ORDER: A-1\nA-1 dispatched\nNOTE: host keeps sleeping\nRUN STOPPED at A-1\n"));
+    expect(md).toMatch(/- A-1\n\n> \*\*Why it stopped:\*\* host keeps sleeping/);
+  });
+
+  test("only the newest five decisions stay in view", () => {
+    const log = "ORDER: A-1\n" + Array.from({ length: 7 }, (_, i) => `DECISION: d${i + 1}\n`).join("");
+    const md = renderMarkdown(sprintState(log));
+    const [folded, visible] = md.split("</details>");
+    expect(folded).toContain("<summary>2 earlier</summary>");
+    expect(folded).toContain("- d1");
+    expect(visible).toMatch(/- d3[\s\S]*- d7/);
+    expect(visible).not.toContain("- d2");
   });
 });

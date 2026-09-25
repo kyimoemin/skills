@@ -8,6 +8,7 @@
 // plus ticket table that VS Code's markdown preview live-refreshes.
 // No network, no ports, no dependencies beyond bun + node stdlib.
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync, watch } from "node:fs";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
@@ -43,6 +44,33 @@ export function mdCell(text: string): string {
   return text.replace(/\|/g, "\\|").replace(/</g, "&lt;").replace(/\s+/g, " ").trim();
 }
 
+/** `YYYY-MM-DD HH:MM` local — a bare time can't tell a file three days
+ *  stale from one written a minute ago. */
+export function stamp(iso: string): string {
+  const d = new Date(iso);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+/** origin remote → `https://github.com/owner/repo`, or undefined for
+ *  anything that isn't GitHub (PR links would be guesses there). */
+export function githubUrl(remote: string): string | undefined {
+  const m = remote.trim().match(/github\.com[:/]([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/);
+  return m ? `https://github.com/${m[1]}/${m[2]}` : undefined;
+}
+
+function repoUrlOf(projectDir: string): string | undefined {
+  try {
+    const remote = execFileSync("git", ["-C", projectDir, "remote", "get-url", "origin"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return githubUrl(remote);
+  } catch {
+    return undefined;
+  }
+}
+
 // ---- rendering -------------------------------------------------------------
 
 const LOOP = ["shape", "design-ui", "architect", "plan-sprint", "sprint", "qa", "retro"];
@@ -75,6 +103,10 @@ function waitingSection(state: DashState, runningNote: string): string[] {
     lines.push(`## ⏸ Waiting on you`);
     lines.push("");
     for (const a of state.awaiting) lines.push(`- ${mdCell(a)}`);
+    if (state.stopNote) {
+      lines.push("");
+      lines.push(`> **Why it stopped:** ${mdCell(state.stopNote)}`);
+    }
   } else {
     lines.push(`## ▶ Running`);
     lines.push("");
@@ -89,10 +121,17 @@ function ticketTable(state: DashState, emptyNote: string): string[] {
   if (state.tickets.length) {
     lines.push("| Ticket | State | PR | Rounds | QA | Detail |");
     lines.push("|---|---|---|---|---|---|");
+    // links are relative to the progress file, which sits in .sprint/
+    // beside the round and qa files it points at
+    const link = (text: string, href?: string) => (href ? `[${text}](${href})` : text);
     for (const t of state.tickets) {
-      const pr = t.pr ? `#${t.pr.number}` : "—";
+      const pr = t.pr
+        ? link(`#${t.pr.number}`, state.repoUrl && `${state.repoUrl}/pull/${t.pr.number}`)
+        : "—";
+      const rounds = t.reviewRounds ? link(String(t.reviewRounds), t.reviewFile) : "—";
+      const qa = t.qa ? link(t.qa, t.qaFile && basename(t.qaFile)) : "—";
       lines.push(
-        `| \`${mdCell(t.id)}\` | ${badge(t.state)} | ${pr} | ${t.reviewRounds ?? "—"} | ${t.qa ?? "—"} | ${mdCell(t.detail ?? "")} |`,
+        `| \`${mdCell(t.id)}\` | ${badge(t.state)} | ${pr} | ${rounds} | ${qa} | ${mdCell(t.detail ?? "")} |`,
       );
     }
   } else {
@@ -102,10 +141,21 @@ function ticketTable(state: DashState, emptyNote: string): string[] {
   return lines;
 }
 
+const RECENT_DECISIONS = 5;
+
+/** Newest few in view, the rest folded — a long run's decisions otherwise
+ *  bury the raw tail under a wall of text. Order stays chronological. */
 function decisionsSection(state: DashState): string[] {
   if (!state.decisions.length) return [];
   const lines: string[] = ["## Decisions", ""];
-  for (const d of state.decisions) lines.push(`- ${mdCell(d)}`);
+  const older = state.decisions.slice(0, -RECENT_DECISIONS);
+  const recent = state.decisions.slice(-RECENT_DECISIONS);
+  if (older.length) {
+    lines.push(`<details><summary>${older.length} earlier</summary>`, "");
+    for (const d of older) lines.push(`- ${mdCell(d)}`);
+    lines.push("", "</details>", "");
+  }
+  for (const d of recent) lines.push(`- ${mdCell(d)}`);
   lines.push("");
   return lines;
 }
@@ -134,7 +184,7 @@ function renderAutopilot(state: DashState): string {
   lines.push(
     `**Run:** ${state.run} · **Mode:** ${mdCell(state.mode ?? "?")}` +
       (complete ? "" : ` · **Stage:** ${stage}`) +
-      ` · _updated ${new Date(state.generatedAt).toLocaleTimeString()}_`,
+      ` · _updated ${stamp(state.generatedAt)}_`,
   );
   lines.push("");
   lines.push(`Source: \`${state.sourceLog ?? "?"}\` — derived read-only; do not edit by hand.`);
@@ -248,7 +298,7 @@ function renderSprint(state: DashState): string {
     `**Run:** ${state.run}` +
       (state.mode ? ` · **Mode:** ${mdCell(state.mode)}` : "") +
       ` · **Tickets:** ${state.tickets.length}` +
-      ` · _updated ${new Date(state.generatedAt).toLocaleTimeString()}_`,
+      ` · _updated ${stamp(state.generatedAt)}_`,
   );
   lines.push("");
   lines.push(`Source: \`${state.sourceLog ?? "?"}\` — derived read-only; do not edit by hand.`);
@@ -498,34 +548,48 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
 
 const stripTimestamps = (md: string): string => md.replace(/_updated [^_]+_/g, "");
 
-async function generate(projectDir: string): Promise<string | undefined> {
+async function generate(
+  projectDir: string,
+  repoUrl: string | undefined,
+): Promise<{ path: string; run: DashState["run"] } | undefined> {
   const { state, message } = await collectState(projectDir);
   if (!state) {
     console.error(message);
     return undefined;
   }
+  state.repoUrl = repoUrl;
   const outName = `progress-${safeFeatureName(state.feature)}.md`;
   const outPath = join(projectDir, ".sprint", outName);
   const next = renderMarkdown(state);
   try {
     const prev = await readFile(outPath, "utf8");
-    if (stripTimestamps(prev) === stripTimestamps(next)) return outPath; // no churn
+    if (stripTimestamps(prev) === stripTimestamps(next)) return { path: outPath, run: state.run }; // no churn
   } catch {
     /* first write */
   }
   await writeFile(outPath, next);
-  return outPath;
+  return { path: outPath, run: state.run };
 }
+
+/** A stopped run can resume in the same session without restarting us
+ *  (autopilot's iteration gate does), so only a long silence ends a watch
+ *  that isn't complete. Every run start or resume starts a fresh watcher. */
+const IDLE_EXIT_MS = 24 * 60 * 60 * 1000;
 
 if (import.meta.main) {
   const argv = process.argv.slice(2);
   const watchMode = argv.includes("--watch");
   const projectDir = resolve(argv.find((a) => !a.startsWith("--")) ?? ".");
 
-  const out = await generate(projectDir);
-  if (out) console.log(`wrote ${out}`);
+  const repoUrl = repoUrlOf(projectDir);
+  const out = await generate(projectDir, repoUrl);
+  if (out) console.log(`wrote ${out.path}`);
 
-  if (watchMode) {
+  // nothing left to redraw: a completed run's log is never appended to
+  // again, and the next run starts its own watcher
+  if (watchMode && out?.run === "complete") {
+    console.log("run complete — not watching");
+  } else if (watchMode) {
     const sprintDir = join(projectDir, ".sprint");
 
     // self-guard: one watcher per project, newest wins. Autopilot starts us
@@ -561,12 +625,28 @@ if (import.meta.main) {
     process.on("SIGINT", () => process.exit(0));
     process.on("SIGTERM", () => process.exit(0));
 
+    let idle: ReturnType<typeof setTimeout> | undefined;
+    const armIdle = () => {
+      clearTimeout(idle);
+      idle = setTimeout(() => {
+        console.log(`no .sprint/ activity for ${IDLE_EXIT_MS / 3600000}h — watcher exiting`);
+        process.exit(0);
+      }, IDLE_EXIT_MS);
+    };
+    armIdle();
+
     let timer: ReturnType<typeof setTimeout> | undefined;
     const schedule = () => {
+      armIdle();
       clearTimeout(timer);
       timer = setTimeout(async () => {
-        const p = await generate(projectDir);
-        if (p) console.log(`${new Date().toLocaleTimeString()} regenerated ${basename(p)}`);
+        const r = await generate(projectDir, repoUrl);
+        if (!r) return;
+        console.log(`${stamp(new Date().toISOString())} regenerated ${basename(r.path)}`);
+        if (r.run === "complete") {
+          console.log("run complete — watcher exiting");
+          process.exit(0);
+        }
       }, 300);
     };
     const attach = () => {

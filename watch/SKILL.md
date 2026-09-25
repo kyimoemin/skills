@@ -26,9 +26,12 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <project-path> [--watch]
   wrote and a reminder that VS Code's markdown preview (Cmd-Shift-V) live-
   refreshes it.
 - **`--watch`:** start it as a background task and confirm what it's
-  watching. It regenerates on every `.sprint/` change until stopped; tell
-  me it keeps running and how to stop it. Don't poll it — it needs no
-  supervision.
+  watching. It regenerates on every `.sprint/` change and exits on its
+  own when the run completes, or after 24h with no `.sprint/` activity.
+  If the run is already complete it renders once, prints "run complete —
+  not watching" and exits; relay that. To stop it early: `kill $(cat
+  <project-path>/.sprint/.progress-watch.pid)` (`kill %1` does nothing
+  here). Don't poll it — it needs no supervision.
 - Script prints "No autopilot or sprint run log" (or no `.sprint/`) →
   relay that message as-is; nothing to fix. Both /autopilot and /sprint
   create their log at startup, so this just means neither has run here
@@ -52,7 +55,11 @@ files as the live mid-ticket signal, and `qa-<ticket>[-<N>].md`
 verdicts. It writes exactly one file — `.sprint/progress-<feature>.md`
 for an autopilot run, `.sprint/progress-<sprint-id>.md` for a sprint run
 (re-runs `<id>-2.md`, `-3.md` share the one file) — and touches nothing
-else: no network, no dependencies. The two views differ: autopilot draws
+else: no network, no dependencies (it reads the `origin` remote locally
+to link PR numbers to GitHub). The two views differ: autopilot draws
 the shape → … → retro pipeline, a sprint run draws its own
-planned → working → ready → merged funnel plus its waves. Tests live
+planned → working → ready → merged funnel plus its waves, and shows the
+`NOTE:` written just before `RUN STOPPED` as why it stopped. In both, the
+ticket table links each PR, the newest review round file and the QA file,
+and only the newest five decisions stay unfolded. Tests live
 next to the script (`bun test` in the scripts dir).

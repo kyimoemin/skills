@@ -620,3 +620,56 @@ describe("sprint view — merge-phase drift", () => {
     expect(s.awaiting).toEqual([]);
   });
 });
+
+describe("sprint view — re-dispatch forms and stop reasons", () => {
+  const build = (log: string) =>
+    buildSprintState({
+      sprint: parseSprintLog(log),
+      sprintId: "s",
+      roundFiles: [],
+      qaSignals: [],
+      now: new Date("2026-09-25T12:00:00Z"),
+    });
+  const RETURNED = "ORDER: DI-1\nDI-1 dispatched\nDI-1 returned complete, PR #9, 2 review rounds\n";
+
+  test.each([
+    "DI-1 re-dispatched",
+    "DI-1 amend re-dispatched (reordered, attempt 4)",
+    "DI-1 resume-dispatch dispatched: continue on fix/x",
+    "DI-1 re-dispatch (agent resume 2) dispatched",
+    "DI-1 rebase re-dispatched after the auth-error death",
+  ])("%s puts a finished ticket back to work", (line) => {
+    expect(build(`${RETURNED}${line}\n`).tickets[0].state).toBe("in-progress");
+  });
+
+  test("a close-tracking dispatch is bookkeeping, not rework", () => {
+    const s = build(`${RETURNED}DI-1 close-tracking dispatched\n`);
+    expect(s.tickets[0].state).toBe("ready-to-merge");
+  });
+
+  test("a return's verdict word is case-insensitive", () => {
+    const s = build("ORDER: DI-1\nDI-1 dispatched\nDI-1 returned FAILED on resume, PR #84\n");
+    expect(s.tickets[0].state).toBe("failed");
+  });
+
+  test("the NOTE right before RUN STOPPED is why it stopped", () => {
+    const s = build(`${RETURNED}NOTE: device verification keeps dying\nRUN STOPPED at DI-1\n`);
+    expect(s.stopNote).toBe("device verification keeps dying");
+  });
+
+  test("a NOTE followed by other events is not the stop reason", () => {
+    const s = build(`${RETURNED}NOTE: early context\nDI-1 re-dispatched\nRUN STOPPED at DI-1\n`);
+    expect(s.stopNote).toBeUndefined();
+  });
+
+  test("resuming after the stop clears the reason", () => {
+    const s = build(`${RETURNED}NOTE: why\nRUN STOPPED at DI-1\nDI-1 re-dispatched\n`);
+    expect(s.run).toBe("running");
+    expect(s.stopNote).toBeUndefined();
+  });
+});
+
+test("a MERGE: line naming the ticket in parens merges it", () => {
+  const s = parseSprintLog("ORDER: DI-66\nDI-66 dispatched\nMERGE: PR #106 (DI-66) merged into redesign at e67cf2c\n");
+  expect(s.tickets["DI-66"].mergedInLog).toBe(true);
+});
