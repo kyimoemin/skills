@@ -709,3 +709,55 @@ ABC-3 dispatched
     expect(p.run).toBe("running");
   });
 });
+
+describe("buildSprintState — auto loop", () => {
+  const LOG = `ORDER: ABC-1, ABC-2, ABC-3 (auto)
+WAVE: ABC-1 ABC-2 ABC-3
+ABC-1 dispatched
+ABC-2 dispatched
+ABC-3 dispatched
+ABC-1 returned complete, PR #10, 1 review round, head a1b2c3d
+ABC-2 returned complete, PR #11, 1 review round, head b2c3d4e
+ABC-3 returned complete, PR #12, 1 review round, head c3d4e5f
+FOLLOWUP: ABC-1 improvement: cache the price lookup
+ABC-1 merged, PR #10, merge commit e4f5a6b, branch deleted
+ABC-2 merge skipped: e2e check failing on main
+FILED: ABC-4 proposed improvement from ABC-1
+FILED: ABC-5 ready bug from ABC-1
+FILED: skipped, duplicate of ABC-0: flaky clock
+`;
+  const state = (log = LOG) =>
+    buildSprintState({
+      sprint: parseSprintLog(log),
+      sprintId: "sprint-17",
+      roundFiles: [],
+      qaSignals: [],
+      now: new Date("2026-09-27T12:00:00Z"),
+    });
+
+  test("a merge skip waits on me; a finished PR mid-loop does not", () => {
+    const s = state();
+    expect(s.mode).toBe("auto");
+    expect(s.tickets.map((t) => `${t.id}:${t.state}`)).toEqual([
+      "ABC-1:merged",
+      "ABC-2:merge-skipped",
+      "ABC-3:ready-to-merge",
+    ]);
+    expect(s.awaiting).toEqual(["ABC-2 merge skipped: e2e check failing on main"]);
+  });
+
+  test("only proposed filings are listed for triage", () => {
+    expect(state().proposed).toEqual(["ABC-4 improvement (from ABC-1)"]);
+  });
+
+  test("a re-dispatch clears the skip", () => {
+    const s = state(LOG + "ABC-2 rebase-dispatch dispatched\n");
+    expect(s.tickets.find((t) => t.id === "ABC-2")?.state).toBe("in-progress");
+    expect(s.awaiting).toEqual([]);
+  });
+
+  test("auto and serial both show in the mode", () => {
+    const s = state(LOG.replace("(auto)", "(auto) (serial)"));
+    expect(s.mode).toBe("auto · serial");
+  });
+});

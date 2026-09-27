@@ -57,6 +57,7 @@ export interface TicketEvents {
   reviewRounds?: number;
   headSha?: string;
   readyToMerge: boolean;
+  mergeSkipped?: string; // /sprint auto: the merge phase skipped it, with why
   answers: string[];
 }
 
@@ -69,6 +70,8 @@ export interface SprintParse {
   stopNote?: string; // the NOTE: written right before RUN STOPPED — the why
   order: string[]; // the ORDER: line — the run's planned ticket list
   serial: boolean; // ORDER: line ends "(serial)"
+  auto: boolean; // an ORDER: line carries "(auto)" — /sprint auto merges itself
+  proposed: string[]; // FILED: … proposed — follow-ups awaiting my triage
   waves: string[][]; // WAVE: lines, in dispatch order
   rawTail: string[];
 }
@@ -117,6 +120,7 @@ export interface DashState {
   sourceLog?: string; // the log this view was derived from
   waves?: string[][]; // sprint kind only
   sprintRun?: number; // sprint kind only: the -N suffix, 1 when unsuffixed
+  proposed?: string[]; // sprint kind only: follow-ups filed for my triage
   repoUrl?: string; // https base of the GitHub origin, for PR links
   generatedAt: string;
 }
@@ -337,6 +341,8 @@ export function parseSprintLog(text: string): SprintParse {
     run: "running",
     order: [],
     serial: false,
+    auto: false,
+    proposed: [],
     waves: [],
     rawTail: lines.filter(Boolean).slice(-15),
   };
@@ -390,6 +396,8 @@ export function parseSprintLog(text: string): SprintParse {
       // the flag is recorded by appending " (serial)" to the ORDER: line —
       // a bare word match would trip on ticket ids like SERIAL-1
       if (/\(\s*serial\s*\)\s*$/i.test(m[1])) out.serial = true;
+      // /sprint auto writes "(auto)" before any "(serial)"
+      if (/\(\s*auto\s*\)/i.test(m[1])) out.auto = true;
       continue;
     }
     if ((m = line.match(/^WAVE:\s*(.*)$/))) {
@@ -422,6 +430,14 @@ export function parseSprintLog(text: string): SprintParse {
       resume();
       const head = m[1].split(/\bmerged\b/i)[0];
       for (const id of ticketIds(head.trim() ? head : m[1])) get(id).mergedInLog = true;
+      continue;
+    }
+    if ((m = line.match(/^FILED:\s*(\S+)\s+proposed\s+(\S+)(?:\s+from\s+(\S+))?/i))) {
+      // /sprint auto files improvements (and bugs found in its own filed
+      // tickets) as proposed: they wait on my triage, never on the loop.
+      // Ready filings and skipped duplicates need nothing from me.
+      const from = m[3] ? ` (from ${m[3]})` : "";
+      out.proposed.push(`${m[1]} ${m[2]}${from}`);
       continue;
     }
     if ((m = line.match(/^DECISION:\s*(.+)$/))) {
@@ -460,6 +476,7 @@ export function parseSprintLog(text: string): SprintParse {
       t.returned = undefined;
       t.blockedReason = undefined;
       t.readyToMerge = false;
+      t.mergeSkipped = undefined;
       continue;
     }
     // one optional qualifier word ("DI-60 rebase-dispatch returned complete")
@@ -481,6 +498,12 @@ export function parseSprintLog(text: string): SprintParse {
     if ((m = rest.match(/^parked\b(?:,?\s*depends\s+on\s+(\S+))?/))) {
       t.parked = true;
       if (m[1]) t.dependsOn = m[1].replace(/[.,]$/, "");
+      continue;
+    }
+    // /sprint auto's merge phase: a failing check it can't rebase away.
+    // Unparsed, the ticket reads ready-to-merge while it waits on me.
+    if ((m = rest.match(/^merge\s+skipped\b:?\s*(.*)$/i))) {
+      t.mergeSkipped = m[1].trim();
       continue;
     }
     if (/^merged\b/.test(rest)) {
@@ -611,6 +634,9 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
     } else if (ev?.parked) {
       t.state = "parked";
       t.detail = ev.blockedReason ?? (ev.dependsOn ? `depends on ${ev.dependsOn}` : undefined);
+    } else if (ev?.mergeSkipped !== undefined) {
+      t.state = "merge-skipped";
+      t.detail = ev.mergeSkipped || undefined;
     } else if (ev?.returned === "complete") {
       // `complete` already means implemented, reviewed clean and finalized,
       // and /sprint stops before merge — so the ticket is waiting on a merge
@@ -641,11 +667,14 @@ function mentionsTicket(text: string, id: string): boolean {
     .some((tok) => tok.replace(/[.,;:]+$/, "") === id);
 }
 
-/** Parked tickets are a stop even when the log's last line doesn't say so. */
+/** Parked and merge-skipped tickets are a stop even when the log's last
+ *  line doesn't say so. */
 function appendParked(awaiting: string[], tickets: TicketState[]): void {
   for (const t of tickets) {
-    if (t.state === "parked" && !awaiting.some((a) => mentionsTicket(a, t.id))) {
-      awaiting.push(`${t.id} parked${t.detail ? `: ${t.detail}` : ""}`);
+    const what =
+      t.state === "parked" ? "parked" : t.state === "merge-skipped" ? "merge skipped" : undefined;
+    if (what && !awaiting.some((a) => mentionsTicket(a, t.id))) {
+      awaiting.push(`${t.id} ${what}${t.detail ? `: ${t.detail}` : ""}`);
     }
   }
 }
@@ -728,8 +757,9 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
   if (sp.run === "stopped" && sp.stoppedOn) awaiting.push(...splitAwaiting(sp.stoppedOn));
   appendParked(awaiting, tickets);
   // /sprint stops before merge by design: a finalized PR is waiting on me
-  // even while the log still reads "running".
-  if (sp.run !== "complete") {
+  // even while the log still reads "running". Not under auto — the loop
+  // merges it itself, so a finished PR there is just between phases.
+  if (sp.run !== "complete" && !sp.auto) {
     const ready = tickets.filter(
       (t) => t.state === "ready-to-merge" && !awaiting.some((a) => mentionsTicket(a, t.id)),
     );
@@ -744,7 +774,7 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
     kind: "sprint",
     feature: inp.sprintId,
     title: sp.title,
-    mode: sp.serial ? "serial" : undefined,
+    mode: [sp.auto && "auto", sp.serial && "serial"].filter(Boolean).join(" · ") || undefined,
     run: sp.run,
     awaiting,
     stopNote: sp.run === "stopped" ? sp.stopNote : undefined,
@@ -758,6 +788,7 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
     sourceLog: inp.sprintLogPath,
     waves: sp.waves,
     sprintRun: inp.sprintRun,
+    proposed: sp.proposed.length ? sp.proposed : undefined,
     generatedAt: inp.now.toISOString(),
   };
 }

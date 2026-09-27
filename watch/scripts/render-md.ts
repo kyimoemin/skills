@@ -80,6 +80,7 @@ const STATE_BADGE: Record<string, string> = {
   merged: "🟢 merged",
   "ready-to-merge": "🟡 ready-to-merge",
   parked: "🟡 parked",
+  "merge-skipped": "🟠 merge-skipped",
   blocked: "🟠 blocked",
   failed: "🟠 failed",
   "qa-fail": "🔴 qa-fail",
@@ -285,7 +286,9 @@ function renderSprint(state: DashState): string {
   const working = inState("in-progress", "in-review");
   const ready = inState("ready-to-merge");
   const merged = inState("merged", "qa-pass", "qa-fail");
-  const stuck = inState("parked", "blocked", "failed");
+  // merge-skipped too: otherwise it falls through to pending and reads
+  // as "not dispatched yet"
+  const stuck = inState("parked", "blocked", "failed", "merge-skipped");
   const pending = state.tickets.length - working.length - ready.length - merged.length - stuck.length;
 
   const runNo = state.sprintRun && state.sprintRun > 1 ? ` (run ${state.sprintRun})` : "";
@@ -305,6 +308,12 @@ function renderSprint(state: DashState): string {
   lines.push("");
 
   lines.push(...waitingSection(state, `Nothing waiting on you — implementers are working.`));
+  if (state.proposed?.length) {
+    // not a stop: the loop keeps running; these wait for my triage whenever
+    lines.push(`## 📝 Proposed for your triage`, "");
+    for (const p of state.proposed) lines.push(`- ${mdCell(p)}`);
+    lines.push("");
+  }
 
   const strip = [
     { id: "n0", label: `planned ${state.tickets.length}`, n: state.tickets.length, cls: "pending" },
