@@ -673,3 +673,39 @@ test("a MERGE: line naming the ticket in parens merges it", () => {
   const s = parseSprintLog("ORDER: DI-66\nDI-66 dispatched\nMERGE: PR #106 (DI-66) merged into redesign at e67cf2c\n");
   expect(s.tickets["DI-66"].mergedInLog).toBe(true);
 });
+
+describe("parseSprintLog — auto loop", () => {
+  // /sprint auto keeps one log for the whole loop: each pass appends its
+  // own ORDER: line, and follow-up bookkeeping (FOLLOWUP:/FILED:) must not
+  // create ticket rows for ids it merely mentions.
+  const AUTO = `# sprint 17 — auto
+ORDER: ABC-1, ABC-2 (auto) (serial)
+WAVE: ABC-1
+ABC-1 dispatched
+ABC-1 returned complete, PR #10, 1 review round, head a1b2c3d, tracker: TRACKER.md
+FOLLOWUP: ABC-1 bug: totals double-count refunds
+WAVE: ABC-2
+ABC-2 dispatched
+ABC-2 returned blocked: which currency for legacy rows?
+ABC-2 parked
+ABC-1 merged, PR #10, merge commit e4f5a6b, branch deleted
+ABC-1 close-tracking dispatched
+FILED: ABC-3 ready bug from ABC-1
+ABC-1 tracking closed, e7f8a9b
+ORDER: ABC-3 (auto) (serial)
+WAVE: ABC-3
+ABC-3 dispatched
+`;
+
+  test("later passes replace the order; earlier tickets keep their rows", () => {
+    const p = parseSprintLog(AUTO);
+    expect(p.title).toBe("sprint 17 — auto");
+    expect(p.order).toEqual(["ABC-3"]);
+    expect(p.serial).toBe(true);
+    expect(p.tickets["ABC-1"].mergedInLog).toBe(true);
+    expect(p.tickets["ABC-2"].parked).toBe(true);
+    expect(p.tickets["ABC-3"].dispatched).toBe(true);
+    expect(Object.keys(p.tickets).sort()).toEqual(["ABC-1", "ABC-2", "ABC-3"]);
+    expect(p.run).toBe("running");
+  });
+});

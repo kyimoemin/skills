@@ -89,7 +89,7 @@ interrupted run resumes where it stopped.
 | Plan | `/bootstrap` | Once per project: vision → stack/tracker/hosting decisions, minimal scaffold with lint/test/CI green |
 | Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
 | Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets (default board is sprint-based — tickets must land in a sprint before dispatch) |
-| Build | `/sprint` | Dispatch one `ticket-implementer` per ticket in dependency waves — independent tickets run parallel in isolated worktrees, `serial` flag forces one-at-a-time; park blockers; merge only what you name |
+| Build | `/sprint` | Dispatch one `ticket-implementer` per ticket in dependency waves — independent tickets run parallel in isolated worktrees, `serial` flag forces one-at-a-time; park blockers; merge only what you name — or `auto`: loop pick-up → implement → merge → file follow-ups (bugs ready, improvements proposed for your triage) until nothing is ready, stopping only for your decisions |
 | Build | `ticket-implementer` | One ticket end to end: branch, code + tests, PR, own review loop, finalize; never merges |
 | Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria/test coverage; one parseable return line |
 | Ship | `/qa` | One `qa-verifier` per merged ticket; failures become bug tickets on go-ahead |

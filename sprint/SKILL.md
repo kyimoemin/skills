@@ -1,6 +1,6 @@
 ---
-description: Work through sprint tickets autonomously via ticket-implementer subagents — each implements, runs its own independent review loop, and finalizes; stop before merge. Merge only the tickets I explicitly approve at the end.
-argument-hint: "[unattended] [serial] [TICKET-IDs space separated | all]"
+description: Work through sprint tickets autonomously via ticket-implementer subagents — each implements, runs its own independent review loop, and finalizes; stop before merge. Merge only the tickets I explicitly approve at the end — or, with `auto`, loop pick-up → implement → merge → file follow-ups until nothing is ready, stopping only for my decisions.
+argument-hint: "[auto] [unattended] [serial] [TICKET-IDs space separated | all]"
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *), Bash(bun run *)
 ---
@@ -59,7 +59,8 @@ Before anything else, look for this sprint's run logs and take the
 highest-numbered one:
 
 - **Exists, not ending in `RUN COMPLETE`** → first check it is even this
-  run's log: if its `ORDER:` line shares no ticket with what I asked for, it
+  run's log (an `auto` run resumes by its own rule instead — see **Auto
+  loop**): if its `ORDER:` line shares no ticket with what I asked for, it
   belongs to a different run — leave it untouched and start a new log at the
   next free suffix. Otherwise do not start. Replay it — a parallel run can
   leave SEVERAL `dispatched` lines with no matching return; every one of
@@ -189,8 +190,8 @@ If no tickets were given: list the ready-to-start tickets from wherever this
 project tracks work (unblocked, dependencies done, in priority order) and
 stop for my confirmation. An unattended invocation (cron, scheduled) must
 pass the `unattended` keyword (`/sprint unattended ABC-1 ABC-2`) and
-explicit ticket ids — `unattended` and `serial` are keywords, never ticket
-ids. If a run
+explicit ticket ids — `unattended`, `serial` and `auto` are keywords, never
+ticket ids. If a run
 marked `unattended` passes `all` or nothing, stop and report instead of
 planning work; a stale board could trigger a lot of unwanted work.
 
@@ -203,6 +204,11 @@ them as skipped with the reason. If nothing is ready, report that and stop.
 Otherwise report the planned order in one short list, then proceed
 immediately without waiting for confirmation (I can interrupt if the order
 looks wrong).
+
+If the word `auto` appears: see **Auto loop** below. With no ticket ids,
+`auto` means `all` — never the list-and-confirm path above. It also changes
+how a run resumes, how the ready set is read, the merge gate, and what
+happens after it.
 
 ## Progress file
 
@@ -374,7 +380,8 @@ PRs now await merge approval, and every parked ticket with the question or
 reason it is waiting on (all blockers in one place, not drip-fed). Flag any card sitting in done whose PR you
 haven't merged; that's a tracking error for me to resolve, not a finished
 ticket.
-Then STOP and wait for my merge instruction. Never merge without it.
+Then STOP and wait for my merge instruction. Never merge without it —
+an `auto` run has it already (see **Auto loop**).
 
 **Merge phase** — when I say "merge all" or name specific tickets, for each
 approved ticket in order:
@@ -408,15 +415,22 @@ approved ticket in order:
    merge to the run log. When the close lands, append
    `<ids> tracking closed, <commit sha | tracking PR #n>`.
 
-**A tracking PR** is a PR like any other: it merges only on my word.
-Append `TRACKING: PR #<n> open, closes <ids>, head <sha>`, report it as
-awaiting merge, and stop. On my approval, re-verify it as in step 1
-against that logged head, merge it as in step 2, and append
-`TRACKING: PR #<n> merged, <merge sha>`. Until then its tickets aren't
-closed — so after the open line, append `RUN STOPPED awaiting: tracking PR
-#<n>`. If it conflicts on re-verify (the version bump and changelog
+**A tracking PR** is covered by the merge word that approved its tickets —
+it is the bookkeeping those merges made true, so it doesn't wait for a
+second word. Append `TRACKING: PR #<n> open, closes <ids>, head <sha>`,
+wait for its checks to finish (`gh pr checks <n> --watch`) — a PR opened
+moments ago is pending, not failing — then re-verify it as in step 1
+against that logged head, merge it as in step 2,
+and append `TRACKING: PR #<n> merged, <merge sha>`. Only if re-verify fails
+for a reason other than a conflict does it stop: report why, and append
+`RUN STOPPED awaiting: tracking PR #<n>` — its tickets aren't closed until
+it merges. If it conflicts on re-verify (the version bump and changelog
 collide with every later PR), don't rebase it: close it, send a fresh
 close-tracking dispatch for the same ids, and log the new `TRACKING:` line.
+Check that from `gh pr view <n> --json files`, not the diff: the tracker
+file, the files the repo requires every PR to touch (version, changelog),
+and the docs of any `prune:` line are bookkeeping. Any other path is not —
+stop and report it.
 
 Append `RUN COMPLETE` only when no ticket in this run is still awaiting a
 merge decision, none is still parked, and no tracking PR is still open. If
@@ -427,6 +441,105 @@ it logs before the terminator.
 
 Tickets I didn't name stay open — list them at the end as still awaiting my
 decision.
+
+## Follow-ups
+
+An implementer's report may carry follow-ups: bugs or improvements it
+confirmed in the code but that fall outside its ticket. Append each on
+return as `FOLLOWUP: <ticket> bug|improvement: <one line>`, so they
+survive an interruption. Filing them is a tracker edit, so it rides on
+the close-tracking dispatch (merge phase step 3) — on a card tracker, on
+the phase's last close-tracking dispatch — as one line per follow-up not
+yet filed:
+
+```
+file: ready|proposed bug|improvement: <one line> (from <ticket>)
+```
+
+- **Improvements are always `proposed`** — filed where `all` never picks
+  them up. What to build is my decision; they wait for my triage.
+- **Bugs are `ready`**, filed where `all` picks them up — except a bug
+  found while fixing a ticket this same run filed (a `FILED:` line names
+  it): that one is `proposed`. A loop that files its own work and then
+  finds more in it could run forever on its own output.
+- **Outside `auto`**, don't file: list the follow-ups in the final summary
+  and let me decide.
+
+If the phase merged nothing (every ticket parked or skipped), send a
+close-tracking dispatch with only the `file:` lines — plus `base: <branch>`,
+the base the run's PRs target (from `gh pr view` on any PR in the log),
+since there is no merged PR for it to read the base from. For each line it
+returns, append `FILED: <new id> ready|proposed <kind> from <ticket>`, or
+`FILED: skipped, duplicate of <id>: <one line>`.
+
+## Auto loop
+
+`auto` means I have pre-authorized every merge this run makes and want it
+to keep going without me. The loop:
+
+```mermaid
+flowchart TB
+    pick["resolve the ready set as all does,
+minus merged / parked / skipped"] --> any{anything ready?}
+    any -- "yes" --> pass["ORDER: ... (auto)
+waves, as usual"]
+    pass --> merge["merge phase on every complete ticket
++ its tracking PR, no word needed"]
+    merge --> file[["close-tracking dispatch
+closes + files follow-ups"]]
+    file --> pick
+    any -- "no" --> held{"parked or skipped?"}
+    held -- "yes" --> stopped(["RUN STOPPED awaiting + notify"])
+    held -- "no" --> complete(["wrap-up, RUN COMPLETE + notify"])
+```
+
+- **One log for the whole loop.** Each pass appends its own
+  `ORDER: <ids> (auto)` line (then ` (serial)` if given — `(serial)` stays
+  last), then its waves. `RUN COMPLETE` comes only when the loop ends.
+- **Picking up:** a pass starts only after the previous pass's
+  close-tracking has landed (tracking PR merged) — the bugs it filed exist
+  only from then. Then `git fetch` and read the tracker as the base branch
+  has it (pull the base in the main checkout if it is clean, else read it
+  from `origin/<base>`) — the local copy is a pass behind. Resolve the ready
+  set exactly as `all` does, and also leave out every ticket this log
+  records as merged, parked or merge-skipped — don't rely on the tracker to
+  have caught up. With explicit
+  ticket ids, the run takes those, merges them, and ends — no further
+  passes.
+- **The merge gate doesn't stop.** Once a pass's waves have all returned,
+  run the merge phase on every `complete` ticket, in order, exactly as
+  written — re-verify in full (CI green, mergeable, head SHA matches the
+  log), conflicts go to the rebase dispatch, any other failing check skips
+  the ticket. Log a skip as `<ticket> merge skipped: <reason>`. The
+  tracking PR merges as in the merge phase.
+- **What stops the loop** — only a decision that is mine:
+  - a parked ticket (its implementer needs my answer),
+  - a merge skip (something failed that a rebase doesn't fix),
+  - a tracking PR that isn't bookkeeping or won't verify.
+
+  None of these halts the other work: log it, send me a push notification
+  naming the repo, the ticket and the one-line reason (the PushNotification
+  tool — load it via tool search if it is deferred; if unavailable, the
+  report is enough), and keep going with everything
+  that doesn't depend on it. The loop stops when nothing is ready — then,
+  if anything is parked or skipped, append `RUN STOPPED awaiting: <ids>`,
+  report every question and skip in one place, plus every `proposed`
+  follow-up filed this run for my triage, and notify me. Otherwise run the
+  wrap-up, append `RUN COMPLETE`, report, and notify me.
+- **My answers** go in as `ANSWER:` lines as usual; re-dispatch the
+  answered tickets as the next pass and keep looping.
+- **A heavy context** is not a reason to push on. At a pass boundary (after
+  its close-tracking, before the next pick-up), if your context has grown
+  past usefulness, append `RUN STOPPED awaiting: fresh session`, sync the
+  archive, and tell me to run `/sprint auto` in a new session.
+- **Resume:** a `/sprint auto` whose highest-numbered log carries `(auto)`
+  on an `ORDER:` line and doesn't end in `RUN COMPLETE` resumes that log —
+  the ORDER-shares-a-ticket check doesn't apply. Replay it as usual;
+  asking continue-or-fresh for an interrupted ticket is one of my
+  decisions.
+- **One auto loop per repo.** Two would pick up the same ready tickets.
+- `auto` is for a session I started. It does not lift the `unattended`
+  rule, and it never deploys.
 
 ## Wrap-up: doc prune check
 
