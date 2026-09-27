@@ -537,7 +537,9 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
   const family = sprintLogs
     .filter((f) => runOf.get(f.name)!.id === id)
     .sort((a, b) => runOf.get(b.name)!.run - runOf.get(a.name)!.run);
-  const winner = family[0]; // chosenSprint is in its own family, so never empty
+  // A live run outranks a higher-numbered sibling: two sessions can run the
+  // same sprint in parallel, and the one still appending is the one to show.
+  const winner = activeSprint ?? family[0]; // chosenSprint is in its own family, so never empty
   const sprint = parseSprintLog(winner.text);
 
   return {

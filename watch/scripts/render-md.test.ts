@@ -258,6 +258,18 @@ describe("collectState — run selection", () => {
     const { state } = await collectState(dir);
     expect(state?.sourceLog).toBe(".sprint/sprint-09.md");
   });
+
+  test("a live run outranks a finished higher-numbered sibling", async () => {
+    // two sessions on one sprint: -3 finished first, -2 is still appending
+    const dir = project({
+      "s.md": "ORDER: A-1\nA-1 dispatched\nA-1 merged\nRUN COMPLETE\n",
+      "s-3.md": "ORDER: A-3\nA-3 dispatched\nA-3 merged\nRUN COMPLETE\n",
+      "s-2.md": "ORDER: A-2\nA-2 dispatched\n",
+    });
+    const { state } = await collectState(dir);
+    expect(state?.sourceLog).toBe(".sprint/s-2.md");
+    expect(state?.run).toBe("running");
+  });
 });
 
 describe("readability", () => {

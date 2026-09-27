@@ -21,6 +21,12 @@ instead of touching files. Your context must stay small — hold the ticket
 you are on and nothing more; the run log below is where run state lives, so
 re-read it rather than carrying it.
 
+Never edit the workflow suite itself — `~/.claude/skills/`, `~/.claude/agents/`
+— not even a one-line fix to a script you watched misbehave. The suite is
+shared by every project and every parallel session, and a fix made from
+inside a run lands untested and unreviewed. Report the bug to me with the
+file and the evidence, and carry on with the run.
+
 ## Run log
 
 This run's state lives in `.sprint/<sprint-id>.md` in the repo, where
