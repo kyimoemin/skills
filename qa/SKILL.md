@@ -86,7 +86,7 @@ After the last verifier returns and its result file is written, snapshot
 `.sprint/` to `refs/sprint/archive` and push, exactly as /sprint's sync
 section does (temp index → `git add -f .sprint` → `write-tree` →
 `commit-tree` parenting the previous snapshot → `update-ref` → push) — QA
-results feed /deploy's gate and /retro, possibly from another machine. No
+results feed /deploy's gate, possibly from another machine. No
 remote → keep the local ref and note it.
 
 ## Failures → bug tickets

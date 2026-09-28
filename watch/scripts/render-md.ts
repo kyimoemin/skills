@@ -4,8 +4,8 @@
 //
 // Derives everything read-only from what the suite already writes
 // (.sprint/ logs, review-round files, qa result files) and regenerates
-// exactly one file: .sprint/progress-<feature>.md — a mermaid pipeline
-// plus ticket table that VS Code's markdown preview live-refreshes.
+// exactly one file: .sprint/progress-<sprint-id>.md — a mermaid progress
+// strip plus ticket table that VS Code's markdown preview live-refreshes.
 // No network, no ports, no dependencies beyond bun + node stdlib.
 
 import { execFileSync } from "node:child_process";
@@ -14,15 +14,12 @@ import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { basename, join, resolve } from "node:path";
 import {
   buildSprintState,
-  buildState,
-  parseAutopilotLog,
   parseSprintLog,
   qaFilesByTicket,
   qaHint,
   stripStamp,
   type DashState,
   type QaSignal,
-  type StageStatus,
 } from "./parse";
 
 // ---- sanitizers (log content is model-written text, not trusted markup) ----
@@ -73,8 +70,6 @@ function repoUrlOf(projectDir: string): string | undefined {
 
 // ---- rendering -------------------------------------------------------------
 
-const LOOP = ["shape", "design-ui", "architect", "plan-sprint", "sprint", "qa", "retro"];
-
 const STATE_BADGE: Record<string, string> = {
   "qa-pass": "🟢 qa-pass",
   merged: "🟢 merged",
@@ -86,16 +81,11 @@ const STATE_BADGE: Record<string, string> = {
   "qa-fail": "🔴 qa-fail",
   "in-progress": "🔵 in-progress",
   pending: "⚪ pending",
-  deferred: "⚪ deferred",
 };
 const badge = (state: string): string =>
   STATE_BADGE[state] ?? (state.startsWith("in-review") ? `🔵 ${state}` : `⚪ ${state}`);
 
-export function renderMarkdown(state: DashState): string {
-  return state.kind === "sprint" ? renderSprint(state) : renderAutopilot(state);
-}
-
-/** Waiting/running/complete panel — the same three states in both views. */
+/** Waiting/running/complete panel. */
 function waitingSection(state: DashState, runningNote: string): string[] {
   const lines: string[] = [];
   if (state.run === "complete") {
@@ -172,114 +162,13 @@ function rawTailSection(state: DashState): string[] {
   return lines;
 }
 
-function renderAutopilot(state: DashState): string {
-  const lines: string[] = [];
-  const stopped = state.run === "stopped";
-  const complete = state.run === "complete";
-
-  lines.push(`# Autopilot progress — ${mdCell(state.feature ?? "?")}`);
-  lines.push("");
-  const stage = state.currentStage
-    ? `${state.currentStage.name}${state.currentStage.inferred ? " *(inferred)*" : ""}`
-    : "?";
-  lines.push(
-    `**Run:** ${state.run} · **Mode:** ${mdCell(state.mode ?? "?")}` +
-      (complete ? "" : ` · **Stage:** ${stage}`) +
-      ` · _updated ${stamp(state.generatedAt)}_`,
-  );
-  lines.push("");
-  lines.push(`Source: \`${state.sourceLog ?? "?"}\` — derived read-only; do not edit by hand.`);
-  lines.push("");
-
-  lines.push(...waitingSection(state, `Nothing waiting on you — autopilot is working.`));
-
-  // pipeline diagram: groundwork + the CURRENT iteration's stages
-  const lastIter = state.iterations[state.iterations.length - 1];
-  const stageStatus = new Map<string, StageStatus>();
-  for (const g of state.groundwork) stageStatus.set(g.stage, g.status);
-  if (lastIter) for (const [s, st] of Object.entries(lastIter.stages)) stageStatus.set(s, st);
-
-  const nodes: string[] = [];
-  const classes: Record<string, string[]> = { done: [], skipped: [], active: [], waiting: [], pending: [] };
-  LOOP.forEach((name, i) => {
-    const id = `s${i}`;
-    const st = stageStatus.get(name);
-    const isCurrent = !complete && state.currentStage?.name === name;
-    let cls: string;
-    let mark = "";
-    if (isCurrent && stopped) {
-      cls = "waiting";
-      mark = " ⏸";
-    } else if (isCurrent || st === "started") {
-      cls = "active";
-      mark = " ●";
-    } else if (st === "complete") {
-      cls = "done";
-      mark = " ✓";
-    } else if (st === "skipped") {
-      cls = "skipped";
-      mark = " (skipped)";
-    } else {
-      cls = "pending";
-    }
-    let label = name + mark;
-    if (name === "plan-sprint" && lastIter?.sprint) label = `${name} ${mark.trim()} ${lastIter.sprint}`.trim();
-    nodes.push(`${id}["${mermaidLabel(label)}"]`);
-    classes[cls].push(id);
-  });
-  const endCls = complete ? "done" : "pending";
-  nodes.push(`s7{{"${complete ? "complete ✓" : "done?"}"}}`);
-  classes[endCls].push("s7");
-
-  lines.push("## Pipeline");
-  if (state.iterations.length > 1) {
-    lines.push("");
-    lines.push(`_Iteration ${state.iterations.length} shown; earlier iterations below._`);
-  }
-  lines.push("");
-  lines.push("```mermaid");
-  lines.push("flowchart LR");
-  lines.push(`    ${nodes.join(" --> ")}`);
-  for (const [cls, ids] of Object.entries(classes)) {
-    if (ids.length) lines.push(`    class ${ids.join(",")} ${cls}`);
-  }
-  lines.push(`    classDef done fill:#0ca30c22,stroke:#0ca30c`);
-  lines.push(`    classDef active fill:#4477cc22,stroke:#4477cc,stroke-width:2px`);
-  lines.push(`    classDef waiting fill:#fab21922,stroke:#fab219,stroke-width:2px`);
-  lines.push(`    classDef skipped fill:transparent,stroke:#8a8a84,stroke-dasharray:4`);
-  lines.push(`    classDef pending fill:transparent,stroke:#8a8a84`);
-  lines.push("```");
-  lines.push("");
-
-  lines.push(...ticketTable(state, "_No tickets yet — architect hasn't filed any._"));
-
-  // iteration history
-  if (state.iterations.length > 1) {
-    lines.push("## Iterations");
-    lines.push("");
-    state.iterations.forEach((it, i) => {
-      const stages = Object.entries(it.stages)
-        .map(([s, st]) => `${s} ${st === "complete" ? "✓" : st === "skipped" ? "(skipped)" : "●"}`)
-        .join(" · ");
-      lines.push(
-        `- **${mdCell(it.sprint ?? `iteration ${i + 1}`)}** — ${stages}${it.tickets.length ? ` — ${it.tickets.map((t) => `\`${mdCell(t)}\``).join(" ")}` : ""}`,
-      );
-    });
-    lines.push("");
-  }
-
-  lines.push(...decisionsSection(state));
-  lines.push(...rawTailSection(state));
-  return lines.join("\n");
-}
-
 // ---- sprint view -----------------------------------------------------------
 
 /** A standalone /sprint run has no feature pipeline to draw, so the strip
  *  is the run's own funnel: planned → working → ready → merged, with parked
  *  tickets hanging off it. Counts come from the ticket rows, so the strip
  *  can never disagree with the table below it. */
-function renderSprint(state: DashState): string {
+export function renderMarkdown(state: DashState): string {
   const lines: string[] = [];
   const inState = (...names: string[]) =>
     state.tickets.filter((t) => names.some((n) => t.state === n || t.state.startsWith(n)));
@@ -365,7 +254,7 @@ function renderSprint(state: DashState): string {
  *  excluded up front — a sprint legitimately named `qa-hardening` must
  *  still be found, so qa-* files are ruled out by the content check, not
  *  by prefix. */
-const NOT_A_SPRINT_LOG = /^(?:autopilot-|progress-|\.)/;
+const NOT_A_SPRINT_LOG = /^(?:progress-|\.)/;
 const ROUND_FILE = /^review-.+-r\d+\.md$/;
 
 export function looksLikeSprintLog(text: string): boolean {
@@ -399,21 +288,6 @@ export function sprintIdAndRun(
 
 const isActive = (text: string): boolean => !text.trimEnd().endsWith("RUN COMPLETE");
 
-/** Sprint logs an autopilot log points at (`STAGE: sprint started → path`)
- *  are that feature run's, not standalone runs — they must not outrank a
- *  finished autopilot log's own view. */
-function referencedSprintLogs(autopilotTexts: string[]): Set<string> {
-  const refs = new Set<string>();
-  for (const text of autopilotTexts) {
-    for (const raw of text.split("\n")) {
-      const line = stripStamp(raw.trim());
-      const m = line.match(/^STAGE:\s+sprint\s+\S+\s*(?:→|->)\s*(\S+)/);
-      if (m) refs.add(basename(m[1]));
-    }
-  }
-  return refs;
-}
-
 interface LogFile {
   name: string;
   mtime: number;
@@ -436,14 +310,9 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
   };
   const newestFirst = (a: LogFile, b: LogFile) => b.mtime - a.mtime;
 
-  const autopilotLogs: LogFile[] = [];
   const sprintLogs: LogFile[] = [];
   for (const name of entries) {
     try {
-      if (/^autopilot-.*\.md$/.test(name)) {
-        autopilotLogs.push(await read(name));
-        continue;
-      }
       if (!name.endsWith(".md") || NOT_A_SPRINT_LOG.test(name) || ROUND_FILE.test(name)) continue;
       const f = await read(name);
       if (looksLikeSprintLog(f.text)) sprintLogs.push(f);
@@ -451,13 +320,12 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
       /* unreadable, or a directory named *.md — not a log, keep going */
     }
   }
-  autopilotLogs.sort(newestFirst);
   sprintLogs.sort(newestFirst);
 
   const roundFiles = entries.filter((n) => ROUND_FILE.test(n));
   // run logs out of the qa scan: a sprint log named qa-<something>.md must
   // not double as a QA result file for a bogus ticket
-  const logNames = new Set([...autopilotLogs, ...sprintLogs].map((f) => f.name));
+  const logNames = new Set(sprintLogs.map((f) => f.name));
   const qaEntries = entries.filter((n) => !logNames.has(n));
   const qaSignals = async (knownIds: Iterable<string>): Promise<QaSignal[]> => {
     const out: QaSignal[] = [];
@@ -473,62 +341,16 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
     return out;
   };
 
-  // Precedence: a live autopilot run owns the view; otherwise a live
-  // standalone sprint run does — a finished autopilot log must not keep
-  // rendering itself over a sprint running after it. Finished runs are
-  // only the fallback, autopilot first.
-  const referenced = referencedSprintLogs(autopilotLogs.map((f) => f.text));
-  const standalone = sprintLogs.filter((f) => !referenced.has(f.name));
-  const activeAutopilot = autopilotLogs.find((f) => isActive(f.text));
   // A live run is one still being appended to, so it is necessarily the
   // NEWEST log here — only that one can be active. Searching all of them for
   // a missing terminator instead let an abandoned run (stopped on a gate, no
   // RUN COMPLETE ever appended) outrank every run that finished after it, for
   // good: one such log pinned a project's view to a three-week-old sprint.
-  const newestSprint = standalone[0];
-  const activeSprint = newestSprint && isActive(newestSprint.text) ? newestSprint : undefined;
-
-  const chosenAutopilot = activeAutopilot ?? (activeSprint ? undefined : autopilotLogs[0]);
-  if (chosenAutopilot) {
-    const autopilot = parseAutopilotLog(chosenAutopilot.text);
-    // A parse gap must not collapse every run onto one "progress-run.md":
-    // the log's own basename carries the feature name autopilot named it by.
-    if (!autopilot.feature) {
-      const m = chosenAutopilot.name.match(/^autopilot-(.+)\.md$/);
-      if (m) autopilot.feature = m[1];
-    }
-
-    const sprints = [];
-    for (const it of autopilot.iterations) {
-      if (!it.sprintLog) continue;
-      try {
-        sprints.push(parseSprintLog(await readFile(join(projectDir, it.sprintLog), "utf8")));
-      } catch {
-        /* pointer to a missing file — tolerated */
-      }
-    }
-
-    const knownIds = new Set<string>(autopilot.featureTickets);
-    for (const sp of sprints) for (const id of Object.keys(sp.tickets)) knownIds.add(id);
-
-    return {
-      state: buildState({
-        autopilot,
-        autopilotLogPath: `.sprint/${chosenAutopilot.name}`,
-        sprints,
-        roundFiles,
-        qaSignals: await qaSignals(knownIds),
-        now: new Date(),
-      }),
-    };
-  }
-
-  // no active autopilot log here means there are no autopilot logs at all
-  // (a finished one would have been chosen above), so standalone === sprintLogs
-  const chosenSprint = activeSprint ?? standalone[0];
+  const chosenSprint = sprintLogs[0];
   if (!chosenSprint) {
-    return { message: `No autopilot or sprint run log in ${sprintDir}.` };
+    return { message: `No sprint run log in ${sprintDir}.` };
   }
+  const activeSprint = isActive(chosenSprint.text) ? chosenSprint : undefined;
   // A re-run (`<id>-2.md`) supersedes its predecessor's view, so render the
   // highest run of the chosen log's family.
   const entrySet = new Set(entries);
@@ -582,8 +404,8 @@ async function generate(
   return { path: outPath, run: state.run };
 }
 
-/** A stopped run can resume in the same session without restarting us
- *  (autopilot's iteration gate does), so only a long silence ends a watch
+/** A stopped run can resume in the same session without restarting us,
+ *  so only a long silence ends a watch
  *  that isn't complete. Every run start or resume starts a fresh watcher. */
 const IDLE_EXIT_MS = 24 * 60 * 60 * 1000;
 
@@ -603,8 +425,8 @@ if (import.meta.main) {
   } else if (watchMode) {
     const sprintDir = join(projectDir, ".sprint");
 
-    // self-guard: one watcher per project, newest wins. Autopilot starts us
-    // blindly on every run/resume, and an older watcher may be attached but
+    // self-guard: one watcher per project, newest wins. A run starts us
+    // blindly on every start/resume, and an older watcher may be attached but
     // useless — running the code as it was at ITS start (bun loads once), or
     // deaf after sleep/fs churn — while a live pid alone can't tell healthy
     // from stale. So the fresh start takes over instead of deferring.

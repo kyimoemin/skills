@@ -229,10 +229,8 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <repo root> --watch
 ```
 
 Start it blindly and never wait on it, poll it, or supervise it — the script
-self-guards against duplicate watchers, so a run under /autopilot (which
-starts one too) is fine, and a live autopilot log simply outranks this run's
-in the rendered view. If bun or the watch skill is missing, say so in one line
-and carry on; the run is unaffected.
+self-guards against duplicate watchers. If bun or the watch skill is
+missing, say so in one line and carry on; the run is unaffected.
 
 **Never write or edit that file yourself.** It is derived output: everything
 in it comes from the log lines you already append, so a hand-written progress
@@ -644,7 +642,7 @@ so that shortcut silently writes nothing. Always read the push output: a
 real sync prints an `<old>..<new>` ref update.
 
 No remote → keep the local ref and note it in the report; never put
-`.sprint/` on a normal branch instead. Readers (/qa, /deploy, /retro)
+`.sprint/` on a normal branch instead. Readers (/qa, /deploy)
 restore a missing `.sprint/` from this ref, so a sync you skip is an
 audit trail another machine can't see.
 

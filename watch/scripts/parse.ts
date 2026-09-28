@@ -6,45 +6,6 @@
 // recognize. Drift shows up in the dashboard's raw-tail panel instead
 // of crashing the parse.
 
-export type StageStatus = "complete" | "skipped" | "started";
-
-export interface StageEntry {
-  stage: string;
-  status: StageStatus;
-  artifact?: string;
-  ui?: boolean; // shape only: the brief's Surface line
-  tickets?: string[]; // architect only: the feature's authoritative list
-}
-
-export interface Iteration {
-  sprint?: string; // e.g. "sprint-3"
-  sprintLog?: string; // e.g. ".sprint/sprint-3.md"
-  tickets: string[];
-  stages: Record<string, StageStatus>;
-  qaRaw?: string; // qa STAGE line payload, verbatim
-  mergedTickets?: string[];
-}
-
-export interface Deferral {
-  tickets: string[];
-  reason?: string;
-}
-
-export interface AutopilotParse {
-  feature?: string;
-  mode?: string;
-  run: "running" | "stopped" | "complete";
-  groundwork: StageEntry[];
-  iterations: Iteration[];
-  featureTickets: string[];
-  qaPassed: string[];
-  deferred: Deferral[];
-  awaiting: string[]; // current only — cleared by any later line
-  answers: string[];
-  currentStage: { name: string; inferred: boolean } | null;
-  rawTail: string[];
-}
-
 export interface TicketEvents {
   id: string;
   dispatched: boolean;
@@ -103,24 +64,20 @@ export interface TicketState {
 }
 
 export interface DashState {
-  kind: "autopilot" | "sprint";
-  feature?: string; // autopilot: feature name; sprint: sprint id
-  title?: string; // sprint kind only: the log's own heading, when it has one
+  feature?: string; // sprint id
+  title?: string; // the log's own heading, when it has one
   mode?: string;
   run: "running" | "stopped" | "complete";
   awaiting: string[];
-  stopNote?: string; // sprint kind only: why the run stopped, when it said
-  groundwork: StageEntry[];
-  iterations: Iteration[];
+  stopNote?: string; // why the run stopped, when it said
   featureTickets: string[];
   tickets: TicketState[];
-  currentStage: { name: string; inferred: boolean } | null;
   decisions: string[];
   rawTail: string[];
   sourceLog?: string; // the log this view was derived from
-  waves?: string[][]; // sprint kind only
-  sprintRun?: number; // sprint kind only: the -N suffix, 1 when unsuffixed
-  proposed?: string[]; // sprint kind only: follow-ups filed for my triage
+  waves?: string[][];
+  sprintRun?: number; // the -N suffix, 1 when unsuffixed
+  proposed?: string[]; // follow-ups filed for my triage
   repoUrl?: string; // https base of the GitHub origin, for PR links
   generatedAt: string;
 }
@@ -128,20 +85,10 @@ export interface DashState {
 const TICKET_RE = /^[A-Za-z][\w.]*-\d+$/;
 
 /** Real logs may prefix every line with a `[YYYY-MM-DD HH:MM]` stamp
- *  (the autopilot SKILL.md allows it). Parsing always works on the
+ *  (the suite's log convention allows it). Parsing always works on the
  *  unstamped line; rawTail keeps lines verbatim. */
 const STAMP_RE = /^\[[^\]\n]{0,40}\]\s+/;
 export const stripStamp = (line: string): string => line.replace(STAMP_RE, "");
-const GROUNDWORK = new Set(["shape", "design-ui", "architect"]);
-const LOOP_ORDER = [
-  "shape",
-  "design-ui",
-  "architect",
-  "plan-sprint",
-  "sprint",
-  "qa",
-  "retro",
-];
 
 function ticketIds(text: string): string[] {
   // parens too: merge lines are written `MERGE: PR #106 (DI-66) merged …`
@@ -166,171 +113,6 @@ function splitAwaiting(text: string): string[] {
   }
   if (cur.trim()) items.push(cur.trim());
   return items;
-}
-
-// real logs also write "in progress" as a mid-stage status note
-const STAGE_RE = /^STAGE:\s+(\S+)\s+(complete|skipped|started|in progress)\s*(?:(?:→|->)\s*(.*))?$/;
-
-export function parseAutopilotLog(text: string): AutopilotParse {
-  const lines = text.split("\n").map((l) => l.trim());
-  const out: AutopilotParse = {
-    run: "running",
-    groundwork: [],
-    iterations: [],
-    featureTickets: [],
-    qaPassed: [],
-    deferred: [],
-    awaiting: [],
-    answers: [],
-    currentStage: null,
-    rawTail: lines.filter(Boolean).slice(-15),
-  };
-
-  let currentIteration: Iteration | null = null;
-  const newIteration = (): Iteration => {
-    const it: Iteration = { tickets: [], stages: {} };
-    out.iterations.push(it);
-    return it;
-  };
-
-  for (const rawLine of lines) {
-    const line = stripStamp(rawLine);
-    if (!line) continue;
-
-    let m: RegExpMatchArray | null;
-    if ((m = line.match(/^FEATURE:\s*(.+)$/))) {
-      // feature names are brief basenames (kebab, no spaces); real logs
-      // append prose after it — keep only the name
-      out.feature = m[1].trim().split(/\s+/)[0];
-      continue;
-    }
-    if ((m = line.match(/^MODE:\s*(.+)$/))) {
-      out.mode = m[1].trim();
-      out.awaiting = [];
-      continue;
-    }
-    if (line === "RUN COMPLETE") {
-      out.run = "complete";
-      out.awaiting = [];
-      continue;
-    }
-    if ((m = line.match(/^RUN STOPPED\s+(?:awaiting:|at)\s*(.*)$/))) {
-      out.run = "stopped";
-      out.awaiting = splitAwaiting(m[1]);
-      continue;
-    }
-    if ((m = line.match(/^ANSWER:\s*(.+)$/))) {
-      const answer = m[1].trim();
-      out.answers.push(answer);
-      out.run = "running";
-      out.awaiting = []; // autopilot restates leftovers as a fresh RUN STOPPED
-      const defer = answer.match(/^defer\s+(.*)$/i);
-      if (defer) {
-        const ids = ticketIds(defer[1]);
-        const reason = defer[1]
-          .split(/[\s,]+/)
-          .filter((t) => !TICKET_RE.test(t))
-          .join(" ")
-          .trim();
-        if (ids.length) out.deferred.push({ tickets: ids, reason: reason || undefined });
-      }
-      continue;
-    }
-    if ((m = line.match(STAGE_RE))) {
-      const stage = m[1];
-      const status = (m[2] === "in progress" ? "started" : m[2]) as StageStatus;
-      const rest = (m[3] ?? "").trim();
-      const isProgressNote = m[2] === "in progress";
-      out.run = "running";
-      out.awaiting = [];
-
-      if (GROUNDWORK.has(stage)) {
-        const entry: StageEntry = { stage, status: status as StageStatus };
-        if (stage === "shape") {
-          const ui = rest.match(/\bui:\s*(yes|no)\b/i);
-          if (ui) entry.ui = ui[1].toLowerCase() === "yes";
-          entry.artifact = rest.replace(/,?\s*ui:\s*(yes|no)\b.*$/i, "").trim() || undefined;
-        } else if (stage === "architect") {
-          const t = rest.match(/\btickets?\s+(.*)$/i);
-          if (t) {
-            entry.tickets = ticketIds(t[1]);
-            out.featureTickets.push(...entry.tickets);
-          }
-          entry.artifact = rest.replace(/,?\s*tickets?\s+.*$/i, "").trim() || undefined;
-        } else {
-          entry.artifact = rest || undefined;
-        }
-        // re-runs of a groundwork stage replace the earlier entry
-        out.groundwork = out.groundwork.filter((g) => g.stage !== stage);
-        out.groundwork.push(entry);
-        continue;
-      }
-
-      // iteration stages
-      if (stage === "plan-sprint") {
-        currentIteration = newIteration();
-        currentIteration.stages["plan-sprint"] = status as StageStatus;
-        // "sprint-3 open: T-14 T-15 T-16"
-        const sp = rest.match(/^(\S+)\s+open:?\s*(.*)$/);
-        if (sp) {
-          currentIteration.sprint = sp[1];
-          currentIteration.tickets = ticketIds(sp[2]);
-        } else {
-          currentIteration.tickets = ticketIds(rest);
-        }
-        continue;
-      }
-      if (!currentIteration) currentIteration = newIteration();
-      currentIteration.stages[stage] = status as StageStatus;
-      if (stage === "sprint") {
-        // "started → .sprint/sprint-02.md (ORDER: …)" — the path is the
-        // first token; a later "in progress" note must not overwrite it
-        if (status === "started" && rest && !isProgressNote && !currentIteration.sprintLog) {
-          currentIteration.sprintLog = rest.split(/\s+/)[0];
-        }
-        if (status === "complete") {
-          const merged = rest.match(/\bmerged\s+(.*)$/i);
-          if (merged) currentIteration.mergedTickets = ticketIds(merged[1]);
-        }
-      }
-      if (stage === "qa" && status === "complete") {
-        currentIteration.qaRaw = rest || undefined;
-        const pass = rest.match(/\bpass(?:ed)?\s+(.*)$/i);
-        if (pass) out.qaPassed.push(...ticketIds(pass[1]));
-      }
-      continue;
-    }
-    // unknown line: ignored (visible in rawTail)
-  }
-
-  out.currentStage = inferCurrentStage(out);
-  return out;
-}
-
-function inferCurrentStage(p: AutopilotParse): { name: string; inferred: boolean } | null {
-  if (p.run === "complete") return { name: "complete", inferred: false };
-
-  const lastIter = p.iterations[p.iterations.length - 1];
-  const allStages: { stage: string; status: StageStatus }[] = [
-    ...p.groundwork.map((g) => ({ stage: g.stage, status: g.status })),
-  ];
-  if (lastIter) {
-    for (const [stage, status] of Object.entries(lastIter.stages)) {
-      allStages.push({ stage, status });
-    }
-  }
-  const last = allStages[allStages.length - 1];
-  if (!last) return { name: "shape", inferred: true };
-  if (last.status === "started") return { name: last.stage, inferred: false };
-
-  const idx = LOOP_ORDER.indexOf(last.stage);
-  if (last.stage === "retro") return { name: "completion check", inferred: true };
-  if (last.stage === "shape") {
-    const shape = p.groundwork.find((g) => g.stage === "shape");
-    if (shape?.ui === false) return { name: "architect", inferred: true };
-  }
-  const next = idx >= 0 ? LOOP_ORDER[idx + 1] : undefined;
-  return next ? { name: next, inferred: true } : null;
 }
 
 export function parseSprintLog(text: string): SprintParse {
@@ -572,34 +354,18 @@ export function qaHint(text: string): QaSignal["hint"] {
   return "ran";
 }
 
-export interface BuildInputs {
-  autopilot: AutopilotParse;
-  autopilotLogPath?: string;
-  sprints: SprintParse[];
-  roundFiles: string[]; // basenames in .sprint/
-  qaSignals: QaSignal[];
-  prs?: Record<number, PrInfo>;
-  now: Date;
-}
-
-/** Ticket rows, shared by both views: an autopilot run merges several
- *  sprint logs and layers deferrals/QA lines on top; a standalone sprint
- *  run has exactly one log and none of that context. The per-ticket
- *  state machine is identical, so it lives here once. */
+/** Ticket rows: the per-ticket state machine over one run log's events,
+ *  decorated by round files, QA files and PR lookups. */
 interface DeriveInputs {
   events: Map<string, TicketEvents>;
   ids: Set<string>;
   rounds: Record<string, number>;
   qaByTicket: Map<string, QaSignal>;
-  deferred: Deferral[];
-  qaPassIds: Set<string>;
-  mergedExternally: Set<string>;
   prs?: Record<number, PrInfo>;
 }
 
 function deriveTickets(inp: DeriveInputs): TicketState[] {
-  const { events, ids, rounds, qaByTicket, qaPassIds, mergedExternally } = inp;
-  const deferredIds = new Set(inp.deferred.flatMap((d) => d.tickets));
+  const { events, ids, rounds, qaByTicket } = inp;
   const tickets: TicketState[] = [];
   for (const id of ids) {
     const ev = events.get(id);
@@ -614,17 +380,10 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
       t.qaFile = qa.path;
       t.qa = qa.hint;
     }
-    if (qaPassIds.has(id)) t.qa = "pass";
 
-    const merged =
-      ev?.mergedInLog ||
-      mergedExternally.has(id) ||
-      t.pr?.state === "MERGED";
+    const merged = ev?.mergedInLog || t.pr?.state === "MERGED";
 
-    if (deferredIds.has(id)) {
-      t.state = "deferred";
-      t.detail = inp.deferred.find((d) => d.tickets.includes(id))?.reason;
-    } else if (merged && t.qa === "fail") {
+    if (merged && t.qa === "fail") {
       t.state = "qa-fail";
       t.detail = "merged, QA failed — bugs filed per fold/backlog choice";
     } else if (merged && t.qa === "pass") {
@@ -679,51 +438,6 @@ function appendParked(awaiting: string[], tickets: TicketState[]): void {
   }
 }
 
-export function buildState(inp: BuildInputs): DashState {
-  const ap = inp.autopilot;
-
-  // merge sprint-log views: later logs win per ticket
-  const events = new Map<string, TicketEvents>();
-  for (const sp of inp.sprints) {
-    for (const [id, ev] of Object.entries(sp.tickets)) events.set(id, ev);
-  }
-
-  // Rows come from this run's own logs; round files only decorate them.
-  // `.sprint/` accumulates review-*-r*.md across features, so a stale
-  // file must never conjure a ticket row for a run it doesn't belong to.
-  const tickets = deriveTickets({
-    events,
-    ids: new Set<string>([...ap.featureTickets, ...events.keys()]),
-    rounds: roundsFromFiles(inp.roundFiles),
-    qaByTicket: new Map(inp.qaSignals.map((q) => [q.ticket, q])),
-    deferred: ap.deferred,
-    qaPassIds: new Set(ap.qaPassed),
-    mergedExternally: new Set(ap.iterations.flatMap((it) => it.mergedTickets ?? [])),
-    prs: inp.prs,
-  });
-
-  // awaiting: autopilot's current stop, plus parked tickets not already named
-  const awaiting = [...ap.awaiting];
-  appendParked(awaiting, tickets);
-
-  return {
-    kind: "autopilot",
-    feature: ap.feature,
-    mode: ap.mode,
-    run: ap.run,
-    awaiting,
-    groundwork: ap.groundwork,
-    iterations: ap.iterations,
-    featureTickets: [...new Set(ap.featureTickets)],
-    tickets,
-    currentStage: ap.currentStage,
-    decisions: inp.sprints.flatMap((s) => s.decisions),
-    rawTail: ap.rawTail,
-    sourceLog: inp.autopilotLogPath,
-    generatedAt: inp.now.toISOString(),
-  };
-}
-
 export interface SprintBuildInputs {
   sprint: SprintParse;
   sprintId: string; // log basename without the -N run suffix
@@ -735,10 +449,7 @@ export interface SprintBuildInputs {
   now: Date;
 }
 
-/** A standalone /sprint run: one log, no feature pipeline around it.
- *  Everything the autopilot view gets from stage lines — deferrals, the
- *  QA verdict line, merges recorded outside the sprint log — has no
- *  source here, so those inputs are empty rather than guessed. */
+/** A standalone /sprint run: one log, no feature pipeline around it. */
 export function buildSprintState(inp: SprintBuildInputs): DashState {
   const sp = inp.sprint;
   const events = new Map<string, TicketEvents>(Object.entries(sp.tickets));
@@ -747,9 +458,6 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
     ids: new Set<string>([...sp.order, ...events.keys()]),
     rounds: roundsFromFiles(inp.roundFiles),
     qaByTicket: new Map(inp.qaSignals.map((q) => [q.ticket, q])),
-    deferred: [],
-    qaPassIds: new Set(),
-    mergedExternally: new Set(),
     prs: inp.prs,
   });
 
@@ -771,18 +479,14 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
   }
 
   return {
-    kind: "sprint",
     feature: inp.sprintId,
     title: sp.title,
     mode: [sp.auto && "auto", sp.serial && "serial"].filter(Boolean).join(" · ") || undefined,
     run: sp.run,
     awaiting,
     stopNote: sp.run === "stopped" ? sp.stopNote : undefined,
-    groundwork: [],
-    iterations: [],
     featureTickets: [...new Set(sp.order)],
     tickets,
-    currentStage: null,
     decisions: sp.decisions,
     rawTail: sp.rawTail,
     sourceLog: inp.sprintLogPath,
