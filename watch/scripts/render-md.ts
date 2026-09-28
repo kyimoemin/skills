@@ -4,8 +4,10 @@
 //
 // Derives everything read-only from what the suite already writes
 // (.sprint/ logs, review-round files, qa result files) and regenerates
-// exactly one file: .sprint/progress-<sprint-id>.md — a mermaid progress
-// strip plus ticket table that VS Code's markdown preview live-refreshes.
+// .sprint/progress-<sprint-id>.md — a mermaid progress strip plus ticket
+// table that VS Code's markdown preview live-refreshes — and a copy at the
+// fixed path .sprint/progress-current.md, so one open preview always shows
+// whichever run is current.
 // No network, no ports, no dependencies beyond bun + node stdlib.
 
 import { execFileSync } from "node:child_process";
@@ -381,7 +383,23 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
 
 const stripTimestamps = (md: string): string => md.replace(/_updated [^_]+_/g, "");
 
-async function generate(
+/** Fixed-name mirror of the chosen run's progress file. The `progress-`
+ *  prefix keeps it out of log discovery and the watcher's retrigger check,
+ *  and can't collide with a sprint log's name. */
+export const CURRENT_NAME = "progress-current.md";
+
+/** Write unless only the `_updated_` stamp would change — no churn. */
+async function writeIfChanged(path: string, next: string): Promise<void> {
+  try {
+    const prev = await readFile(path, "utf8");
+    if (stripTimestamps(prev) === stripTimestamps(next)) return;
+  } catch {
+    /* first write */
+  }
+  await writeFile(path, next);
+}
+
+export async function generate(
   projectDir: string,
   repoUrl: string | undefined,
 ): Promise<{ path: string; run: DashState["run"] } | undefined> {
@@ -394,13 +412,8 @@ async function generate(
   const outName = `progress-${safeFeatureName(state.feature)}.md`;
   const outPath = join(projectDir, ".sprint", outName);
   const next = renderMarkdown(state);
-  try {
-    const prev = await readFile(outPath, "utf8");
-    if (stripTimestamps(prev) === stripTimestamps(next)) return { path: outPath, run: state.run }; // no churn
-  } catch {
-    /* first write */
-  }
-  await writeFile(outPath, next);
+  await writeIfChanged(outPath, next);
+  if (outName !== CURRENT_NAME) await writeIfChanged(join(projectDir, ".sprint", CURRENT_NAME), next);
   return { path: outPath, run: state.run };
 }
 

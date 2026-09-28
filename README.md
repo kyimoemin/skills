@@ -72,7 +72,7 @@ nodes are subagents — everything else is a skill you invoke.
 | Ship | `qa-verifier` | Proves shipped behavior in the running app; code reading doesn't count |
 | Ship | `/deploy` | Discover the release mechanism; CI + QA gates; ship on explicit go-ahead; verify live |
 | Anytime | `/standup` | Read-only: where things stand, grouped by who can act, ends with a `/sprint` line |
-| Anytime | `/watch` | Writes `.sprint/progress-<sprint-id>.md` for the live run — funnel, waiting-on-you list, ticket table, derived read-only from the run's own log; `--watch` keeps it live |
+| Anytime | `/watch` | Writes `.sprint/progress-<sprint-id>.md` for the live run, mirrored to the fixed `.sprint/progress-current.md` — funnel, waiting-on-you list, ticket table, derived read-only from the run's own log; `--watch` keeps it live |
 
 ## The handshakes that hold it together
 
