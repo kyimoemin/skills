@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { buildSprintState, parseSprintLog } from "./parse";
-import { mkdtempSync, writeFileSync, mkdirSync, utimesSync } from "node:fs";
+import { mkdtempSync, writeFileSync, mkdirSync, readdirSync, readFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   collectState,
+  CURRENT_NAME,
+  generate,
   githubUrl,
   looksLikeSprintLog,
   mdCell,
@@ -184,6 +186,41 @@ describe("collectState — run selection", () => {
     const { state } = await collectState(dir);
     expect(state?.sourceLog).toBe(".sprint/s-2.md");
     expect(state?.run).toBe("running");
+  });
+});
+
+// One preview left open on progress-current.md follows the runs, so nobody
+// has to find which progress-<id>.md is live.
+describe("generate — fixed current file", () => {
+  const sprintDir = (): string => {
+    const dir = mkdtempSync(join(tmpdir(), "watch-test-"));
+    mkdirSync(join(dir, ".sprint"));
+    return dir;
+  };
+  const read = (dir: string, name: string): string =>
+    readFileSync(join(dir, ".sprint", name), "utf8");
+
+  test("mirrors the chosen run and follows it to the next sprint", async () => {
+    const dir = sprintDir();
+    writeFileSync(join(dir, ".sprint", "sprint-06.md"), "ORDER: A-1\nA-1 dispatched\n");
+    await generate(dir, undefined);
+    expect(read(dir, CURRENT_NAME)).toBe(read(dir, "progress-sprint-06.md"));
+
+    const later = join(dir, ".sprint", "sprint-07.md");
+    writeFileSync(later, "ORDER: A-9\nA-9 dispatched\n");
+    const t = new Date(Date.now() + 60_000);
+    utimesSync(later, t, t);
+    await generate(dir, undefined);
+    expect(read(dir, CURRENT_NAME)).toBe(read(dir, "progress-sprint-07.md"));
+    expect(read(dir, CURRENT_NAME)).toContain("A-9");
+  });
+
+  test("a sprint named `current` gets one file, not a clash", async () => {
+    const dir = sprintDir();
+    writeFileSync(join(dir, ".sprint", "current.md"), "ORDER: A-1\nA-1 dispatched\n");
+    const out = await generate(dir, undefined);
+    expect(out?.path).toBe(join(dir, ".sprint", CURRENT_NAME));
+    expect(readdirSync(join(dir, ".sprint")).sort()).toEqual(["current.md", CURRENT_NAME]);
   });
 });
 

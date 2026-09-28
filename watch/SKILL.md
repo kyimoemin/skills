@@ -24,7 +24,8 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <project-path> [--watch]
   directory whose `.sprint/` the run lives in). Pass it explicitly.
 - **One-shot (default):** run it once, then report one line — the path it
   wrote and a reminder that VS Code's markdown preview (Cmd-Shift-V) live-
-  refreshes it.
+  refreshes it; a preview left open on `.sprint/progress-current.md`
+  always shows the current run, whichever sprint that is.
 - **`--watch`:** start it as a background task and confirm what it's
   watching. It regenerates on every `.sprint/` change and exits on its
   own when the run completes, or after 24h with no `.sprint/` activity.
@@ -47,9 +48,9 @@ title) — so stray notes are never mistaken for one.
 
 For the chosen run it reads its sprint logs, `review-<ticket>-r<N>.md`
 files as the live mid-ticket signal, and `qa-<ticket>[-<N>].md`
-verdicts. It writes exactly one file — `.sprint/progress-<sprint-id>.md`
-(re-runs `<id>-2.md`, `-3.md` share the one file) — and touches nothing
-else: no network, no dependencies (it reads the `origin` remote locally
+verdicts. It writes `.sprint/progress-<sprint-id>.md` (re-runs
+`<id>-2.md`, `-3.md` share the one file) plus an identical copy at the
+fixed path `.sprint/progress-current.md`, and touches nothing else: no network, no dependencies (it reads the `origin` remote locally
 to link PR numbers to GitHub). It draws the run's
 planned → working → ready → merged funnel plus its waves, and shows the
 `NOTE:` written just before `RUN STOPPED` as why it stopped. The
