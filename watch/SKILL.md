@@ -1,5 +1,5 @@
 ---
-description: Maintain a visual progress file for the current run — an autopilot feature loop or a standalone /sprint run — with a mermaid diagram, a waiting-on-you list, and a ticket table, all derived read-only from the run's own logs. One-shot by default; --watch keeps it live while the run works.
+description: Maintain a visual progress file for the current /sprint run with a mermaid diagram, a waiting-on-you list, and a ticket table, all derived read-only from the run's own logs. One-shot by default; --watch keeps it live while the run works.
 argument-hint: "[project-path] [--watch]"
 allowed-tools: Bash(bun run *)
 ---
@@ -32,34 +32,27 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <project-path> [--watch]
   not watching" and exits; relay that. To stop it early: `kill $(cat
   <project-path>/.sprint/.progress-watch.pid)` (`kill %1` does nothing
   here). Don't poll it — it needs no supervision.
-- Script prints "No autopilot or sprint run log" (or no `.sprint/`) →
-  relay that message as-is; nothing to fix. Both /autopilot and /sprint
-  create their log at startup, so this just means neither has run here
-  yet.
+- Script prints "No sprint run log" (or no `.sprint/`) → relay that
+  message as-is; nothing to fix. /sprint creates its log at startup, so
+  this just means it hasn't run here yet.
 
 ## What the script derives (for your report, not for you to re-derive)
 
-Which run it renders, in precedence order: an unfinished
-`.sprint/autopilot-*.md` (autopilot's own resume rule) → else the
-newest standalone sprint run log, if it is unfinished (an older
-unfinished log never outranks a newer one) → else the newest finished run,
-autopilot first. A sprint run log is identified by content — a `.md` in
+Which run it renders: the newest sprint run log, if it is unfinished (an
+older unfinished log never outranks a newer one) → else the newest
+finished run. A sprint run log is identified by content — a `.md` in
 `.sprint/` whose first entry is the `ORDER:` line /sprint writes, under an
 optional `# ...` heading naming the run (which becomes the progress file's
-title) — so stray notes are never mistaken for one, and logs an autopilot log points
-at (`STAGE: sprint started →`) belong to that feature run rather than
-counting as standalone.
+title) — so stray notes are never mistaken for one.
 
 For the chosen run it reads its sprint logs, `review-<ticket>-r<N>.md`
 files as the live mid-ticket signal, and `qa-<ticket>[-<N>].md`
-verdicts. It writes exactly one file — `.sprint/progress-<feature>.md`
-for an autopilot run, `.sprint/progress-<sprint-id>.md` for a sprint run
+verdicts. It writes exactly one file — `.sprint/progress-<sprint-id>.md`
 (re-runs `<id>-2.md`, `-3.md` share the one file) — and touches nothing
 else: no network, no dependencies (it reads the `origin` remote locally
-to link PR numbers to GitHub). The two views differ: autopilot draws
-the shape → … → retro pipeline, a sprint run draws its own
+to link PR numbers to GitHub). It draws the run's
 planned → working → ready → merged funnel plus its waves, and shows the
-`NOTE:` written just before `RUN STOPPED` as why it stopped. In both, the
+`NOTE:` written just before `RUN STOPPED` as why it stopped. The
 ticket table links each PR, the newest review round file and the QA file,
 and only the newest five decisions stay unfolded. Tests live
 next to the script (`bun test` in the scripts dir).

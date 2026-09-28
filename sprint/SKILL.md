@@ -190,7 +190,7 @@ A logged card column is where the implementer left the card, not where it
 is now — when you need the current column, read it from the tracker.
 
 Keep the log when the run finishes; it is the only record of planned-vs-
-finished and review effort, which the iteration retro needs.
+finished and review effort.
 
 If no tickets were given: list the ready-to-start tickets from wherever this
 project tracks work (unblocked, dependencies done, in priority order) and
@@ -229,10 +229,8 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <repo root> --watch
 ```
 
 Start it blindly and never wait on it, poll it, or supervise it — the script
-self-guards against duplicate watchers, so a run under /autopilot (which
-starts one too) is fine, and a live autopilot log simply outranks this run's
-in the rendered view. If bun or the watch skill is missing, say so in one line
-and carry on; the run is unaffected.
+self-guards against duplicate watchers. If bun or the watch skill is
+missing, say so in one line and carry on; the run is unaffected.
 
 **Never write or edit that file yourself.** It is derived output: everything
 in it comes from the log lines you already append, so a hand-written progress
@@ -366,8 +364,8 @@ Per ticket:
 4. **Record:** append the return line to the run log — status, PR, review
    rounds, head SHA, card column, tracker location. If the report listed a
    cross-cutting decision, append it to the decisions log too. The round
-   files under `.sprint/` are the review audit trail; leave them for the
-   retro, don't read them now.
+   files under `.sprint/` are the review audit trail; leave them, don't read
+   them now.
 5. **Report to me** in one line — ticket, PR, review rounds, card column —
    and move on.
 
@@ -616,7 +614,7 @@ and merge only on my word, like any PR.
 ## Syncing `.sprint/` to the archive ref
 
 `.sprint/` is excluded from the index, so on its own it dies with this
-machine — and the QA gate and retro die with it. It survives via a
+machine — and the QA gate dies with it. It survives via a
 dedicated ref, `refs/sprint/archive`, holding snapshots of the whole
 `.sprint/` directory outside every branch. Snapshot and push after
 appending `RUN STOPPED` or `RUN COMPLETE`, and again after a merge phase:
@@ -644,7 +642,7 @@ so that shortcut silently writes nothing. Always read the push output: a
 real sync prints an `<old>..<new>` ref update.
 
 No remote → keep the local ref and note it in the report; never put
-`.sprint/` on a normal branch instead. Readers (/qa, /deploy, /retro)
+`.sprint/` on a normal branch instead. Readers (/qa, /deploy)
 restore a missing `.sprint/` from this ref, so a sync you skip is an
 audit trail another machine can't see.
 

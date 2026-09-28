@@ -1,25 +1,20 @@
 # Dev-workflow suite
 
-Fourteen Claude Code skills (this repo) plus three subagents
-([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run a
-full software lifecycle: app idea → vision → (new project: bootstrap) →
-feature brief → UI design → technical design → tickets → sprint → QA →
-release → retro. Every skill discovers the project's tracker and conventions at
-runtime, so there are no per-repo variants. Two rules hold everywhere:
-**nothing consequential happens without an explicit go-ahead** (filing,
-merging, deploying), and **nothing lives only in the conversation** — durable
-state is the tracker plus `.sprint/` files.
+Seven Claude Code skills (this repo) plus three subagents
+([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run
+the delivery half of a software lifecycle: tickets → sprint → QA → release.
+Every skill discovers the project's tracker and conventions at runtime, so
+there are no per-repo variants. Two rules hold everywhere: **nothing
+consequential happens without an explicit go-ahead** (filing, merging,
+deploying), and **nothing lives only in the conversation** — durable state is
+the tracker plus `.sprint/` files.
 
 ## The loop
 
 ```mermaid
 flowchart TB
-    subgraph pm ["Plan (PM layer)"]
-        vision["/vision\nonce: app idea → feature map + MVP cut"]
-        shape["/shape\nfeature → product brief (PO POV)"]
-        designui["/design-ui\ndesign language (once) + feature screens"]
-        bootstrap["/bootstrap\nonce: repo, stack, tracker, CI"]
-        architect["/architect\nbrief → design → tickets"]
+    subgraph pm ["Plan"]
+        addticket["/add-ticket\ncapture a bug, idea, or task"]
         plansprint["/plan-sprint\nclose iteration, open next"]
     end
 
@@ -35,22 +30,14 @@ flowchart TB
         deploy["/deploy\ngated release"]
     end
 
-    retro["/retro\nmines the audit trail"]
     standup["/standup\nread-only status"]
+    watch["/watch\nlive progress file"]
 
     tracker[("tracker / backlog\ncards: implementer is sole writer")]
     dotsprint[(".sprint/  (synced via refs/sprint/archive)\nrun log · findings · QA results")]
 
-    idea([app or feature idea]) --> vision
-    idea --> shape
-    vision -- "feature map, build order" --> shape
-    vision -- "new project" --> bootstrap
-    bootstrap -- "repo + conventions" --> shape
-    shape -- "product brief (md)" --> designui
-    designui -- "screens + design language (md)" --> architect
-    shape -- "no UI surface" --> architect
-    designui -. "design-language.md" .-> impl
-    architect -- "tickets + deps" --> tracker
+    idea([bug, idea, or task]) --> addticket
+    addticket -- "ticket" --> tracker
     tracker --> plansprint
     plansprint -- "next iteration" --> sprint
     tracker -- "no iterations: /sprint <ids>" --> sprint
@@ -65,29 +52,18 @@ flowchart TB
     qav -- "failures → bug tickets" --> tracker
     dotsprint -- "QA gate" --> deploy
     deploy --> live([release live])
-    dotsprint --> retro
-    tracker --> retro
-    retro -- "process changes → tickets" --> tracker
     standup -.-> tracker
+    watch -.-> dotsprint
 ```
 
 Solid arrows are data handoffs; dashed are read-only reads. Double-bordered
 nodes are subagents — everything else is a skill you invoke.
 
-`/autopilot` drives this loop one feature at a time so you don't invoke each
-skill yourself: it runs the stages in order, propagates every stage's
-questions to you, and logs progress to `.sprint/autopilot-<feature>.md` so an
-interrupted run resumes where it stopped.
-
 ## Who does what
 
 | Layer | Skill / agent | In one line |
 |---|---|---|
-| Plan | `/vision` | Once per app: idea → feature map, MVP cut, build order — the queue /shape pulls from |
-| Plan | `/shape` | Feature idea → product brief from the PO's seat: users, implied scope, MVP line — no code, no tickets |
-| Plan | `/design-ui` | App-wide design language (once) + per-feature screens/states from the brief — the UI docs implementers follow |
-| Plan | `/bootstrap` | Once per project: vision → stack/tracker/hosting decisions, minimal scaffold with lint/test/CI green |
-| Plan | `/architect` | Product brief (or raw idea) → decision-dense design (+ mermaid when structure warrants) → PR-sized tickets |
+| Plan | `/add-ticket` | One-off capture of a bug, idea, or task — discovers the tracker's conventions, checks for duplicates, files on go-ahead |
 | Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets (default board is sprint-based — tickets must land in a sprint before dispatch) |
 | Build | `/sprint` | Dispatch one `ticket-implementer` per ticket in dependency waves — independent tickets run parallel in isolated worktrees, `serial` flag forces one-at-a-time; park blockers; merge only what you name — or `auto`: loop pick-up → implement → merge → file follow-ups (bugs ready, improvements proposed for your triage) until nothing is ready, stopping only for your decisions |
 | Build | `ticket-implementer` | One ticket end to end: branch, code + tests, PR, own review loop, finalize; never merges |
@@ -95,11 +71,8 @@ interrupted run resumes where it stopped.
 | Ship | `/qa` | One `qa-verifier` per merged ticket; failures become bug tickets on go-ahead |
 | Ship | `qa-verifier` | Proves shipped behavior in the running app; code reading doesn't count |
 | Ship | `/deploy` | Discover the release mechanism; CI + QA gates; ship on explicit go-ahead; verify live |
-| Learn | `/retro` | Turn run logs, findings, and QA results into 1–3 evidenced process changes — filed as project tickets, or as proposed edits to the suite's own skill/agent docs when the pattern indicts the workflow |
 | Anytime | `/standup` | Read-only: where things stand, grouped by who can act, ends with a `/sprint` line |
-| Anytime | `/add-ticket` | One-off capture of a bug, idea, or task — discovers the tracker's conventions, checks for duplicates, files on go-ahead |
 | Anytime | `/watch` | Writes `.sprint/progress-<sprint-id>.md` for the live run — funnel, waiting-on-you list, ticket table, derived read-only from the run's own log; `--watch` keeps it live |
-| Drive | `/autopilot` | Run the whole per-feature loop (shape → … → retro) hands-free; stage questions propagate to you; `merge=auto\|manual` flag; resumable via `.sprint/autopilot-<feature>.md` progress log |
 
 ## The handshakes that hold it together
 
@@ -109,36 +82,18 @@ interrupted run resumes where it stopped.
   diagnosable.
 - **`.sprint/`** (kept out of git via `.git/info/exclude`, never
   `.gitignore`) is the audit trail: append-only run logs, per-round
-  findings files, QA results. `/deploy` reads it as the QA gate; `/retro`
-  is its final consumer. It's kept off every branch, but not machine-bound:
-  `/sprint` and `/qa` snapshot it to the `refs/sprint/archive` ref and push,
-  and readers restore a missing `.sprint/` from that ref — so QA gates and
-  retros work on machines the sprint didn't run on.
-- **The vision doc** (`docs/product/vision.md`, written by /vision once
-  per app) is the durable feature queue: /shape pulls the next unshaped
-  feature from its build order and stays inside its MVP cut; /bootstrap
-  steers the stack by its feature map. It changes only when direction
-  changes — no skill exists to re-groom it.
-- **The product brief** (md file written by /shape) is the durable product
-  contract: /architect reads it as settled scope and inherits its
-  out-of-scope list, so product decisions are made once, in one place.
-- **The UI docs** (written by /design-ui under `docs/design/ui/`) split by
-  scope: `design-language.md` is a repo convention binding every
-  implementer's user-facing work — like the tests-follow-the-repo's-lead
-  rule, whether or not a ticket links it — while per-feature screen docs
-  are linked from the tickets that build them, by /architect.
-- **Bootstrap lays down what everyone else discovers.** Every skill finds
-  the project's conventions at runtime — tracker, lint/test commands,
-  how-to-run, iteration structure. On a greenfield project /bootstrap
-  creates exactly that set, once; after it, no other skill needs a
-  greenfield mode.
+  findings files, QA results. `/deploy` reads it as the QA gate. It's kept
+  off every branch, but not machine-bound: `/sprint` and `/qa` snapshot it
+  to the `refs/sprint/archive` ref and push, and readers restore a missing
+  `.sprint/` from that ref — so QA gates work on machines the sprint didn't
+  run on.
+- **`docs/design/ui/design-language.md`**, where a project has one, is a
+  repo convention binding every implementer's user-facing work — like the
+  tests-follow-the-repo's-lead rule, whether or not a ticket links it.
 - **Dependency links on tickets** (labels, "depends on #N", tracker links)
-  are written by architect and read by standup, plan-sprint, and
-  sprint's ordering.
+  are read by standup, plan-sprint, and sprint's ordering.
 - **Humans stay in the loop at exactly three points once tickets exist:**
   answering blocked tickets' questions, merging PRs, and the deploy
-  go-ahead — the PM stages upstream keep their own conversation and
-  go-ahead gates (shaping, design approval, filing tickets, sprint
-  scope). Everything else is dispatchable. `/autopilot merge=auto` can
-  delegate the middle one (clean, CI-green merges only); the rest are
-  never automated.
+  go-ahead. Everything else is dispatchable. `/sprint auto` can delegate
+  the middle one (clean, CI-green merges only); the rest are never
+  automated.
