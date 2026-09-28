@@ -190,7 +190,7 @@ A logged card column is where the implementer left the card, not where it
 is now — when you need the current column, read it from the tracker.
 
 Keep the log when the run finishes; it is the only record of planned-vs-
-finished and review effort, which the iteration retro needs.
+finished and review effort.
 
 If no tickets were given: list the ready-to-start tickets from wherever this
 project tracks work (unblocked, dependencies done, in priority order) and
@@ -364,8 +364,8 @@ Per ticket:
 4. **Record:** append the return line to the run log — status, PR, review
    rounds, head SHA, card column, tracker location. If the report listed a
    cross-cutting decision, append it to the decisions log too. The round
-   files under `.sprint/` are the review audit trail; leave them for the
-   retro, don't read them now.
+   files under `.sprint/` are the review audit trail; leave them, don't read
+   them now.
 5. **Report to me** in one line — ticket, PR, review rounds, card column —
    and move on.
 
@@ -614,7 +614,7 @@ and merge only on my word, like any PR.
 ## Syncing `.sprint/` to the archive ref
 
 `.sprint/` is excluded from the index, so on its own it dies with this
-machine — and the QA gate and retro die with it. It survives via a
+machine — and the QA gate dies with it. It survives via a
 dedicated ref, `refs/sprint/archive`, holding snapshots of the whole
 `.sprint/` directory outside every branch. Snapshot and push after
 appending `RUN STOPPED` or `RUN COMPLETE`, and again after a merge phase:
