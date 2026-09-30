@@ -9,6 +9,13 @@ consequential happens without an explicit go-ahead** (filing, merging,
 deploying), and **nothing lives only in the conversation** — durable state is
 the tracker plus `.sprint/` files.
 
+**Projects with several repos.** A folder holding several repos can carry a
+`CLAUDE.md` with a `## Repos` table mapping ticket prefixes to repo paths.
+Run from that folder, `/sprint` and `/standup` cover every mapped repo in one
+session: tickets route to their repo by prefix, dependencies across repos
+are ordered, and logs stay per repo. That table is per-project config, not
+a variant of any skill.
+
 ## The loop
 
 ```mermaid

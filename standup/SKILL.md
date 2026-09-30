@@ -7,6 +7,18 @@ allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git branch:*), Bash(git
 
 Read-only. Make no edits, commits, or pushes. Gather, then report.
 
+**Project folder.** If the working directory isn't inside a git repo and its
+`CLAUDE.md` has a `## Repos` table (Prefix | Path), report on every mapped
+repo that has tickets. Run steps 1–2 once per repo, with each command as
+`cd <repo> && <command>` rather than `git -C <repo> …`, which the
+allowlist's prefixes don't cover. Then write
+ONE report: the same sections, with tickets from all repos, each ticket
+line keeping its prefix so the repo is obvious. A ticket blocked by one in
+another repo (`blocked by Muse DI-142`) goes under Blocked, naming that
+ticket. If that ticket is dispatchable, the blocked ticket is unlocked by
+it, so say so in `To unlock more:`. `Ready to run:` is one `/sprint`
+command for this folder with ids from any repo.
+
 1. **Project tracking.** Find how this project tracks work and read it — don't
    assume a fixed layout. Look for, in rough order of preference:
    - An issue tracker (`gh issue list`, or a Jira/Linear board if configured) —
