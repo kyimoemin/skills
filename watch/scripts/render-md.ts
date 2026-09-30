@@ -2,6 +2,10 @@
 //
 //   bun run render-md.ts [projectDir] [--watch]
 //
+// Pointed at a project folder (not a repo, with a `## Repos` table in its
+// CLAUDE.md), it renders every mapped repo's progress file plus one combined
+// sprint-progress.md in the project folder.
+//
 // Derives everything read-only from what the suite already writes
 // (.sprint/ logs, review-round files, qa result files) and regenerates
 // .sprint/progress-<sprint-id>.md — a mermaid progress strip plus ticket
@@ -13,7 +17,7 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, unlinkSync, watch } from "node:fs";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
-import { basename, join, resolve } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import {
   buildSprintState,
   parseSprintLog,
@@ -109,8 +113,10 @@ function waitingSection(state: DashState, runningNote: string): string[] {
   return lines;
 }
 
-function ticketTable(state: DashState, emptyNote: string): string[] {
-  const lines: string[] = ["## Tickets", ""];
+/** `linkBase` prefixes the round and QA links, which are relative to the
+ *  repo's .sprint/: empty there, `<repo>/.sprint/` from a project folder. */
+function ticketTable(state: DashState, emptyNote: string, heading = "## Tickets", linkBase = ""): string[] {
+  const lines: string[] = [heading, ""];
   if (state.tickets.length) {
     lines.push("| Ticket | State | PR | Rounds | QA | Detail |");
     lines.push("|---|---|---|---|---|---|");
@@ -121,8 +127,8 @@ function ticketTable(state: DashState, emptyNote: string): string[] {
       const pr = t.pr
         ? link(`#${t.pr.number}`, state.repoUrl && `${state.repoUrl}/pull/${t.pr.number}`)
         : "—";
-      const rounds = t.reviewRounds ? link(String(t.reviewRounds), t.reviewFile) : "—";
-      const qa = t.qa ? link(t.qa, t.qaFile && basename(t.qaFile)) : "—";
+      const rounds = t.reviewRounds ? link(String(t.reviewRounds), t.reviewFile && linkBase + t.reviewFile) : "—";
+      const qa = t.qa ? link(t.qa, t.qaFile && linkBase + basename(t.qaFile)) : "—";
       lines.push(
         `| \`${mdCell(t.id)}\` | ${badge(t.state)} | ${pr} | ${rounds} | ${qa} | ${mdCell(t.detail ?? "")} |`,
       );
@@ -170,8 +176,7 @@ function rawTailSection(state: DashState): string[] {
  *  is the run's own funnel: planned → working → ready → merged, with parked
  *  tickets hanging off it. Counts come from the ticket rows, so the strip
  *  can never disagree with the table below it. */
-export function renderMarkdown(state: DashState): string {
-  const lines: string[] = [];
+export function funnel(state: DashState) {
   const inState = (...names: string[]) =>
     state.tickets.filter((t) => names.some((n) => t.state === n || t.state.startsWith(n)));
   const working = inState("in-progress", "in-review");
@@ -181,12 +186,20 @@ export function renderMarkdown(state: DashState): string {
   // as "not dispatched yet"
   const stuck = inState("parked", "blocked", "failed", "merge-skipped");
   const pending = state.tickets.length - working.length - ready.length - merged.length - stuck.length;
+  return { working, ready, merged, stuck, pending };
+}
 
+function runHeading(state: DashState): string {
   const runNo = state.sprintRun && state.sprintRun > 1 ? ` (run ${state.sprintRun})` : "";
   // a log that titled itself names the run better than its filename family
   // ever can — `<sprint-id>` is only ever the family, never the section run
-  const heading = state.title ?? `${state.feature ?? "?"}${runNo}`;
-  lines.push(`# Sprint progress — ${mdCell(heading)}`);
+  return state.title ?? `${state.feature ?? "?"}${runNo}`;
+}
+
+export function renderMarkdown(state: DashState): string {
+  const lines: string[] = [];
+  const { working, ready, merged, stuck, pending } = funnel(state);
+  lines.push(`# Sprint progress — ${mdCell(runHeading(state))}`);
   lines.push("");
   lines.push(
     `**Run:** ${state.run}` +
@@ -245,6 +258,136 @@ export function renderMarkdown(state: DashState): string {
   lines.push(...decisionsSection(state));
   lines.push(...rawTailSection(state));
   return lines.join("\n");
+}
+
+// ---- project view ----------------------------------------------------------
+
+export interface RepoView {
+  name: string;
+  dir: string; // relative to the project folder, for links
+  state?: DashState;
+}
+
+const runStatus = (state: DashState): string =>
+  state.run === "complete" ? "✅ complete" : state.awaiting.length ? "⏸ waiting on you" : "▶ running";
+
+/** One page over every mapped repo: what waits on me across all of them
+ *  first, then a row per repo, then the ticket table of each run still
+ *  open. A finished run is only its overview row; its own progress file
+ *  still has everything. */
+export function renderProjectMarkdown(project: string, views: RepoView[], generatedAt: string): string {
+  const lines: string[] = [];
+  lines.push(`# Sprint progress — ${mdCell(project)}`);
+  lines.push("");
+  lines.push(`**Repos:** ${views.length} · _updated ${stamp(generatedAt)}_`);
+  lines.push("");
+  lines.push("Derived read-only from each repo's `.sprint/` run log — do not edit by hand.");
+  lines.push("");
+
+  const states = views.filter((v) => v.state);
+  const open = states.filter((v) => v.state!.run !== "complete");
+  const waiting = open.filter((v) => v.state!.awaiting.length);
+  if (waiting.length) {
+    lines.push("## ⏸ Waiting on you", "");
+    for (const v of waiting) {
+      for (const a of v.state!.awaiting) lines.push(`- **${mdCell(v.name)}** · ${mdCell(a)}`);
+      if (v.state!.stopNote) lines.push(`  > **Why ${mdCell(v.name)} stopped:** ${mdCell(v.state!.stopNote)}`);
+    }
+  } else if (open.length) {
+    lines.push("## ▶ Running", "", "Nothing waiting on you — implementers are working.");
+  } else if (states.length) {
+    lines.push("## ✅ All runs complete");
+  } else {
+    lines.push("_No sprint runs in any repo yet._");
+  }
+  lines.push("");
+
+  lines.push("## Repos", "");
+  lines.push("| Repo | Run | Status | Planned | Working | Ready | Merged | Parked |");
+  lines.push("|---|---|---|---|---|---|---|---|");
+  for (const v of views) {
+    const repo = v.state ? `[${mdCell(v.name)}](${encodeURI(v.dir)}/.sprint/${CURRENT_NAME})` : mdCell(v.name);
+    if (!v.state) {
+      lines.push(`| ${repo} | — | no runs yet | | | | | |`);
+      continue;
+    }
+    const f = funnel(v.state);
+    lines.push(
+      `| ${repo} | ${mdCell(runHeading(v.state))} | ${runStatus(v.state)} | ${v.state.tickets.length} | ` +
+        `${f.working.length} | ${f.ready.length} | ${f.merged.length} | ${f.stuck.length} |`,
+    );
+  }
+  lines.push("");
+
+  for (const v of open) {
+    const base = `${encodeURI(v.dir)}/.sprint/`;
+    lines.push(
+      ...ticketTable(
+        v.state!,
+        "_No tickets yet._",
+        `## ${mdCell(v.name)} — ${mdCell(runHeading(v.state!))}`,
+        base,
+      ),
+    );
+  }
+  return lines.join("\n");
+}
+
+/** Repos table in a CLAUDE.md: the `## Repos` section's first markdown
+ *  table, read by its `Prefix` and `Path` header cells. Rows without a
+ *  ticket prefix hold no tickets, so they have no runs to show. */
+export function parseRepoMap(claudeMd: string): { prefix: string; path: string }[] {
+  const lines = claudeMd.split("\n");
+  const start = lines.findIndex((l) => /^##\s+Repos\s*$/.test(l.trim()));
+  if (start < 0) return [];
+  const rows: string[][] = [];
+  for (const raw of lines.slice(start + 1)) {
+    const l = raw.trim();
+    if (/^#{1,2}\s/.test(l)) break;
+    if (!l.startsWith("|")) {
+      if (rows.length) break;
+      continue;
+    }
+    rows.push(l.replace(/^\||\|$/g, "").split("|").map((c) => c.trim()));
+  }
+  if (rows.length < 2) return [];
+  const header = rows[0].map((c) => c.toLowerCase());
+  const prefixCol = header.indexOf("prefix");
+  const pathCol = header.indexOf("path");
+  if (prefixCol < 0 || pathCol < 0) return [];
+  return rows
+    .slice(1)
+    .filter((r) => !r.every((c) => /^:?-+:?$/.test(c)))
+    // `DI` and **DI** are still DI: /sprint reads the table loosely, so a
+    // formatted prefix must not drop the repo from this page alone
+    .map((r) => ({
+      prefix: (r[prefixCol] ?? "").replace(/[`*]/g, "").trim(),
+      path: (r[pathCol] ?? "").replace(/`/g, "").trim(),
+    }))
+    .filter((r) => /^[A-Za-z]/.test(r.prefix) && r.path);
+}
+
+function insideGitRepo(dir: string): boolean {
+  try {
+    execFileSync("git", ["-C", dir, "rev-parse", "--is-inside-work-tree"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The mapped repos when `dir` is a project folder, else undefined. A repo
+ *  is never one, even when its CLAUDE.md lists related repos. */
+export function projectRepos(dir: string): { prefix: string; path: string }[] | undefined {
+  if (insideGitRepo(dir)) return undefined;
+  let text: string;
+  try {
+    text = readFileSync(join(dir, "CLAUDE.md"), "utf8");
+  } catch {
+    return undefined;
+  }
+  const repos = parseRepoMap(text);
+  return repos.length ? repos : undefined;
 }
 
 // ---- state collection (same discovery rules as the suite) ------------------
@@ -399,6 +542,15 @@ async function writeIfChanged(path: string, next: string): Promise<void> {
   await writeFile(path, next);
 }
 
+async function writeRunFiles(projectDir: string, state: DashState): Promise<string> {
+  const outName = `progress-${safeFeatureName(state.feature)}.md`;
+  const outPath = join(projectDir, ".sprint", outName);
+  const next = renderMarkdown(state);
+  await writeIfChanged(outPath, next);
+  if (outName !== CURRENT_NAME) await writeIfChanged(join(projectDir, ".sprint", CURRENT_NAME), next);
+  return outPath;
+}
+
 export async function generate(
   projectDir: string,
   repoUrl: string | undefined,
@@ -409,12 +561,33 @@ export async function generate(
     return undefined;
   }
   state.repoUrl = repoUrl;
-  const outName = `progress-${safeFeatureName(state.feature)}.md`;
-  const outPath = join(projectDir, ".sprint", outName);
-  const next = renderMarkdown(state);
-  await writeIfChanged(outPath, next);
-  if (outName !== CURRENT_NAME) await writeIfChanged(join(projectDir, ".sprint", CURRENT_NAME), next);
-  return { path: outPath, run: state.run };
+  return { path: await writeRunFiles(projectDir, state), run: state.run };
+}
+
+/** The combined view's file, in the project folder itself. */
+export const PROJECT_NAME = "sprint-progress.md";
+
+/** Every mapped repo's own progress files, then the combined page.
+ *  `complete` only when every repo that has a run has finished it. */
+export async function generateProject(
+  projectDir: string,
+  repos: { path: string }[],
+  repoUrl: (dir: string) => string | undefined = repoUrlOf,
+): Promise<{ path: string; complete: boolean }> {
+  const views: RepoView[] = [];
+  for (const r of repos) {
+    const dir = resolve(projectDir, r.path);
+    const { state } = await collectState(dir);
+    if (state) {
+      state.repoUrl = repoUrl(dir);
+      await writeRunFiles(dir, state);
+    }
+    views.push({ name: basename(dir), dir: relative(projectDir, dir) || ".", state });
+  }
+  const outPath = join(projectDir, PROJECT_NAME);
+  await writeIfChanged(outPath, renderProjectMarkdown(basename(projectDir), views, new Date().toISOString()));
+  const states = views.flatMap((v) => (v.state ? [v.state] : []));
+  return { path: outPath, complete: states.length > 0 && states.every((s) => s.run === "complete") };
 }
 
 /** A stopped run can resume in the same session without restarting us,
@@ -422,11 +595,118 @@ export async function generate(
  *  that isn't complete. Every run start or resume starts a fresh watcher. */
 const IDLE_EXIT_MS = 24 * 60 * 60 * 1000;
 
+/** Self-guard: one watcher per pidfile, newest wins. A run starts us
+ *  blindly on every start/resume, and an older watcher may be attached but
+ *  useless — running the code as it was at ITS start (bun loads once), or
+ *  deaf after sleep/fs churn — while a live pid alone can't tell healthy
+ *  from stale. So the fresh start takes over instead of deferring. */
+async function claimPidfile(pidFile: string): Promise<void> {
+  const prev = Number(await readFile(pidFile, "utf8").catch(() => "0"));
+  if (prev > 0 && prev !== process.pid) {
+    try {
+      // SIGKILL: a predecessor's exit handler may unlink the pidfile
+      // unconditionally, which would erase the claim we're about to write
+      process.kill(prev, "SIGKILL");
+      console.log(`took over from previous watcher (pid ${prev})`);
+    } catch {
+      /* already gone */
+    }
+  }
+  await writeFile(pidFile, String(process.pid));
+}
+
+function dropPidOnExit(pidFile: string): void {
+  process.on("exit", () => {
+    try {
+      // remove only our own claim — a successor may have taken over
+      if (readFileSync(pidFile, "utf8") === String(process.pid)) unlinkSync(pidFile);
+    } catch {
+      /* best-effort */
+    }
+  });
+  process.on("SIGINT", () => process.exit(0));
+  process.on("SIGTERM", () => process.exit(0));
+}
+
+const ignoredChange = (filename: string | null): boolean =>
+  !!filename && (filename.startsWith("progress-") || filename.startsWith(".progress-watch"));
+
+/** Project-folder mode: one watcher over every mapped repo's .sprint/. */
+async function watchProject(projectDir: string, repos: { path: string }[], watchMode: boolean): Promise<void> {
+  const urls = new Map<string, string | undefined>();
+  const urlOf = (dir: string) => {
+    if (!urls.has(dir)) urls.set(dir, repoUrlOf(dir));
+    return urls.get(dir);
+  };
+  const out = await generateProject(projectDir, repos, urlOf);
+  console.log(`wrote ${out.path}`);
+  if (!watchMode) return;
+  if (out.complete) {
+    console.log("every repo's run is complete — not watching");
+    return;
+  }
+
+  const pidFile = join(projectDir, ".progress-watch.pid");
+  await claimPidfile(pidFile);
+  dropPidOnExit(pidFile);
+
+  let idle: ReturnType<typeof setTimeout> | undefined;
+  const armIdle = () => {
+    clearTimeout(idle);
+    idle = setTimeout(() => {
+      console.log(`no .sprint/ activity for ${IDLE_EXIT_MS / 3600000}h — watcher exiting`);
+      process.exit(0);
+    }, IDLE_EXIT_MS);
+  };
+  armIdle();
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = () => {
+    armIdle();
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const r = await generateProject(projectDir, repos, urlOf);
+      console.log(`${stamp(new Date().toISOString())} regenerated ${basename(r.path)}`);
+      if (r.complete) {
+        console.log("every repo's run is complete — watcher exiting");
+        process.exit(0);
+      }
+    }, 300);
+  };
+  const attach = (sprintDir: string) => {
+    watch(sprintDir, (_event, filename) => {
+      if (!ignoredChange(filename)) schedule();
+    });
+    console.log(`watching ${sprintDir}`);
+  };
+  for (const r of repos) {
+    const sprintDir = join(resolve(projectDir, r.path), ".sprint");
+    if (existsSync(sprintDir)) {
+      attach(sprintDir);
+      continue;
+    }
+    // a repo's first run creates its .sprint/ mid-project
+    const poll = setInterval(() => {
+      if (existsSync(sprintDir)) {
+        clearInterval(poll);
+        schedule();
+        attach(sprintDir);
+      }
+    }, 2000);
+  }
+  console.log("Ctrl-C to stop");
+}
+
 if (import.meta.main) {
   const argv = process.argv.slice(2);
   const watchMode = argv.includes("--watch");
   const projectDir = resolve(argv.find((a) => !a.startsWith("--")) ?? ".");
+  const repos = projectRepos(projectDir);
+  if (repos) await watchProject(projectDir, repos, watchMode);
+  else await watchRepo(projectDir, watchMode);
+}
 
+async function watchRepo(projectDir: string, watchMode: boolean): Promise<void> {
   const repoUrl = repoUrlOf(projectDir);
   const out = await generate(projectDir, repoUrl);
   if (out) console.log(`wrote ${out.path}`);
@@ -438,38 +718,10 @@ if (import.meta.main) {
   } else if (watchMode) {
     const sprintDir = join(projectDir, ".sprint");
 
-    // self-guard: one watcher per project, newest wins. A run starts us
-    // blindly on every start/resume, and an older watcher may be attached but
-    // useless — running the code as it was at ITS start (bun loads once), or
-    // deaf after sleep/fs churn — while a live pid alone can't tell healthy
-    // from stale. So the fresh start takes over instead of deferring.
+    // one watcher per project, newest wins (see claimPidfile)
     const pidFile = join(sprintDir, ".progress-watch.pid");
-    const claimPidfile = async () => {
-      const prev = Number(await readFile(pidFile, "utf8").catch(() => "0"));
-      if (prev > 0 && prev !== process.pid) {
-        try {
-          // SIGKILL: a predecessor's exit handler may unlink the pidfile
-          // unconditionally, which would erase the claim we're about to write
-          process.kill(prev, "SIGKILL");
-          console.log(`took over from previous watcher (pid ${prev})`);
-        } catch {
-          /* already gone */
-        }
-      }
-      await writeFile(pidFile, String(process.pid));
-    };
-    if (existsSync(sprintDir)) await claimPidfile();
-    const dropPid = () => {
-      try {
-        // remove only our own claim — a successor may have taken over
-        if (readFileSync(pidFile, "utf8") === String(process.pid)) unlinkSync(pidFile);
-      } catch {
-        /* best-effort */
-      }
-    };
-    process.on("exit", dropPid);
-    process.on("SIGINT", () => process.exit(0));
-    process.on("SIGTERM", () => process.exit(0));
+    if (existsSync(sprintDir)) await claimPidfile(pidFile);
+    dropPidOnExit(pidFile);
 
     let idle: ReturnType<typeof setTimeout> | undefined;
     const armIdle = () => {
@@ -498,8 +750,7 @@ if (import.meta.main) {
     const attach = () => {
       watch(sprintDir, (_event, filename) => {
         // our own output and pidfile must not retrigger us
-        if (filename && (filename.startsWith("progress-") || filename.startsWith(".progress-watch"))) return;
-        schedule();
+        if (!ignoredChange(filename)) schedule();
       });
       console.log(`watching ${sprintDir} — Ctrl-C to stop`);
     };
@@ -510,7 +761,7 @@ if (import.meta.main) {
       const poll = setInterval(() => {
         if (existsSync(sprintDir)) {
           clearInterval(poll);
-          claimPidfile().catch(() => {});
+          claimPidfile(pidFile).catch(() => {});
           schedule();
           attach();
         }
