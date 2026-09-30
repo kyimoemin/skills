@@ -37,6 +37,15 @@ bun run ~/.claude/skills/watch/scripts/render-md.ts <project-path> [--watch]
   message as-is; nothing to fix. /sprint creates its log at startup, so
   this just means it hasn't run here yet.
 
+**Project folder.** If the path is a folder of several repos (not itself a
+repo, with a `## Repos` table in its `CLAUDE.md`), the script covers every
+mapped repo. It refreshes each repo's own progress files and writes one
+combined page, `<project folder>/sprint-progress.md`: everything waiting on
+me across the repos, a row per repo, and the ticket table of each run still
+open. `--watch` then watches every repo's `.sprint/` and exits when every
+repo's run is complete. Its pidfile is `<project folder>/.progress-watch.pid`.
+Report the combined page's path.
+
 ## What the script derives (for your report, not for you to re-derive)
 
 Which run it renders: the newest sprint run log, if it is unfinished (an

@@ -633,10 +633,13 @@ changes:
   repo, because a decision in one repo can change a ticket in another.
 - **Close-tracking: one dispatch per repo** per merge phase. Each repo has
   its own tracker file.
-- **Watchers and archive, per repo.** Start `render-md.ts <repo> --watch`
-  for each repo when its log is created. Run the archive sync with each
-  repo as the working directory. The recipe's paths are relative to the
-  repo root.
+- **One watcher, archive per repo.** Start the watcher once, on the
+  project folder, when the first log exists: `bun run
+  ~/.claude/skills/watch/scripts/render-md.ts <project folder> --watch`. It
+  keeps every repo's own progress file up to date and writes the combined
+  `<project folder>/sprint-progress.md`, and it picks up a repo whose
+  `.sprint/` appears later. Run the archive sync with each repo as the
+  working directory. The recipe's paths are relative to the repo root.
 - **Ending.** When the run stops or finishes, give every repo log its own
   terminator (`RUN STOPPED awaiting: …` or `RUN COMPLETE`), judged on that
   log's tickets alone. The report covers every repo.

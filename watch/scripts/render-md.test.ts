@@ -3,15 +3,21 @@ import { buildSprintState, parseSprintLog } from "./parse";
 import { mkdtempSync, writeFileSync, mkdirSync, readdirSync, readFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { execFileSync } from "node:child_process";
 import {
   collectState,
   CURRENT_NAME,
   generate,
+  generateProject,
   githubUrl,
   looksLikeSprintLog,
   mdCell,
   mermaidLabel,
+  parseRepoMap,
+  PROJECT_NAME,
+  projectRepos,
   renderMarkdown,
+  renderProjectMarkdown,
   safeFeatureName,
   sprintIdAndRun,
   stamp,
@@ -274,5 +280,104 @@ describe("readability", () => {
     expect(folded).toContain("- d1");
     expect(visible).toMatch(/- d3[\s\S]*- d7/);
     expect(visible).not.toContain("- d2");
+  });
+});
+
+// A project folder holds several repos; one page shows all their runs.
+const REPOS_MD = `# P
+
+## Repos
+
+| Prefix | Path | Hub | What it is |
+|---|---|---|---|
+| DI | Muse | yes | app |
+| AD | \`admin\` | | panel |
+| — | legal | | no tickets |
+
+## Other
+
+| Prefix | Path |
+|---|---|
+| XX | nope |
+`;
+
+describe("project folder", () => {
+  const projectDir = (repos: Record<string, Record<string, string>>): string => {
+    const dir = mkdtempSync(join(tmpdir(), "watch-project-"));
+    writeFileSync(join(dir, "CLAUDE.md"), REPOS_MD);
+    for (const [repo, files] of Object.entries(repos)) {
+      mkdirSync(join(dir, repo, ".sprint"), { recursive: true });
+      for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, repo, ".sprint", name), text);
+    }
+    return dir;
+  };
+
+  test("the Repos table maps prefixed rows only, and ends at the next heading", () => {
+    expect(parseRepoMap(REPOS_MD)).toEqual([
+      { prefix: "DI", path: "Muse" },
+      { prefix: "AD", path: "admin" },
+    ]);
+    expect(parseRepoMap("## Repos\n\n| Prefix | Path |\n|---|---|\n| `DI` | a |\n| **AD** | b |\n")).toEqual([
+      { prefix: "DI", path: "a" },
+      { prefix: "AD", path: "b" },
+    ]);
+    expect(parseRepoMap("# P\n\n## Related repos\n\n| Prefix | Path |\n|---|---|\n| DI | x |\n")).toEqual([]);
+  });
+
+  test("a repo is never a project folder, even with a Repos table", () => {
+    const dir = projectDir({});
+    expect(projectRepos(dir)?.map((r) => r.prefix)).toEqual(["DI", "AD"]);
+    execFileSync("git", ["init", "-q", dir]);
+    expect(projectRepos(dir)).toBeUndefined();
+  });
+
+  const state = (log: string) => buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", roundFiles: [], qaSignals: [], now: NOW });
+
+  test("what waits on me comes first, named by repo; finished runs are one row", () => {
+    const md = renderProjectMarkdown(
+      "muse",
+      [
+        { name: "Muse", dir: "Muse", state: state("# DI track\nORDER: DI-1\nDI-1 dispatched\nDI-1 returned complete, PR #3\nDI-1 merged\nRUN COMPLETE\n") },
+        { name: "admin", dir: "admin", state: state("ORDER: AD-1\nAD-1 dispatched\nNOTE: mock down\nRUN STOPPED at AD-1\n") },
+        { name: "web", dir: "web" },
+      ],
+      NOW.toISOString(),
+    );
+    expect(md).toContain("- **admin** · AD-1\n  > **Why admin stopped:** mock down");
+    expect(md).toContain(`| [Muse](Muse/.sprint/${CURRENT_NAME}) | DI track | ✅ complete | 1 | 0 | 0 | 1 | 0 |`);
+    expect(md).toContain("| web | — | no runs yet |");
+    expect(md).toContain("## admin — s");
+    expect(md).not.toContain("## Muse —");
+  });
+
+  test("ticket links point into the repo's .sprint/", () => {
+    const s = buildSprintState({
+      sprint: parseSprintLog("ORDER: AD-1\nAD-1 dispatched\nAD-1 returned complete, PR #7\n"),
+      sprintId: "s",
+      roundFiles: ["review-AD-1-r1.md"],
+      qaSignals: [],
+      now: NOW,
+    });
+    const md = renderProjectMarkdown("p", [{ name: "admin", dir: "admin", state: s }], NOW.toISOString());
+    expect(md).toContain("[1](admin/.sprint/review-AD-1-r1.md)");
+  });
+
+  test("writes the combined page and every repo's own files", async () => {
+    const dir = projectDir({
+      Muse: { "a.md": "ORDER: DI-1\nDI-1 dispatched\n" },
+      admin: { "b.md": "ORDER: AD-1\nAD-1 merged\nRUN COMPLETE\n" },
+    });
+    const out = await generateProject(dir, projectRepos(dir)!, () => undefined);
+    expect(out).toEqual({ path: join(dir, PROJECT_NAME), complete: false });
+    expect(readFileSync(out.path, "utf8")).toContain("## ▶ Running");
+    expect(readFileSync(join(dir, "Muse", ".sprint", CURRENT_NAME), "utf8")).toContain("DI-1");
+    expect(readFileSync(join(dir, "admin", ".sprint", CURRENT_NAME), "utf8")).toContain("AD-1");
+  });
+
+  test("complete only when every repo with a run has finished it", async () => {
+    const dir = projectDir({ Muse: { "a.md": "ORDER: DI-1\nDI-1 merged\nRUN COMPLETE\n" } });
+    expect((await generateProject(dir, projectRepos(dir)!, () => undefined)).complete).toBe(true);
+    const empty = projectDir({});
+    expect((await generateProject(empty, projectRepos(empty)!, () => undefined)).complete).toBe(false);
   });
 });
