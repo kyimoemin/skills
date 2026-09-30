@@ -82,7 +82,8 @@ export interface DashState {
   generatedAt: string;
 }
 
-const TICKET_RE = /^[A-Za-z][\w.]*-\d+$/;
+// a split ticket keeps its parent's number plus a letter: DI-32a, WB-44a
+const TICKET_RE = /^[A-Za-z][\w.]*-\d+[a-z]?$/;
 
 /** Real logs may prefix every line with a `[YYYY-MM-DD HH:MM]` stamp
  *  (the suite's log convention allows it). Parsing always works on the

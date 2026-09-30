@@ -60,6 +60,16 @@ describe("parseSprintLog", () => {
     expect(p.tickets["T-5"].dispatched).toBe(true);
     expect(p.run).toBe("stopped");
   });
+
+  test("letter-suffixed split ticket ids", () => {
+    const p = parseSprintLog(
+      "ORDER: DI-32a, DI-3a (auto)\nWAVE: DI-32a\nDI-32a dispatched\nDI-32a returned complete, PR #221, 1 review round, head 7996c1c, ready-to-merge\n",
+    );
+    expect(p.order).toEqual(["DI-32a", "DI-3a"]);
+    expect(p.waves).toEqual([["DI-32a"]]);
+    expect(p.tickets["DI-32a"].pr).toBe(221);
+    expect(p.tickets["DI-32a"].readyToMerge).toBe(true);
+  });
 });
 
 describe("roundsFromFiles", () => {
