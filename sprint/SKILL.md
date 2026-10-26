@@ -424,7 +424,15 @@ approved ticket in order:
    other failing check, skip this ticket, report why, and continue with the
    rest.
 2. **Merge** with `gh pr merge` (repo's default strategy) and delete the
-   ticket branch.
+   ticket branch. A worktree-isolated ticket's branch is still checked out
+   in its worktree, which stops git deleting it, so first find that
+   worktree (`git worktree list --porcelain`, match the branch) and run
+   `git worktree remove <path>` without `--force`. If it refuses, the
+   worktree has uncommitted work: leave it and note it in the report.
+   Then merge with `--delete-branch`. Confirm the remote branch is gone
+   (`git ls-remote --heads origin <branch>` prints nothing) and delete it
+   with `git push origin --delete <branch>` if it isn't. Log
+   `branch deleted` only after that check passes.
 3. **Close tracking:** dispatch a fresh `ticket-implementer` with a
    `close-tracking` prompt — just the ticket ids, PRs, repo path, and the
    tracker location from the run log. It needs nothing else; don't resend
@@ -646,6 +654,24 @@ changes:
 - **Resume.** Look at each mapped repo's newest log. Every one with a
   `PROJECT:` line and no `RUN COMPLETE` belongs to the run. Replay them
   together.
+
+## Wrap-up: branch and worktree sweep
+
+Before the prune check, clean up whatever this run left behind:
+
+- Run `git worktree remove` (never `--force`) on each worktree under
+  `.claude/worktrees/` whose branch belongs to a merged ticket, or is an
+  agent placeholder branch (`worktree-agent-*`). Then run
+  `git worktree prune`.
+- Delete the local branches of merged tickets, and the placeholder
+  branches, with `git branch -D`. A squash merge leaves `-d` refusing,
+  because git can't see the branch's commits on the base.
+- Delete any merged ticket's remote branch that step 2 missed.
+
+Touch only branches this run's log records as `merged`, plus the
+placeholders. Leave parked tickets and open PRs alone. Log one line:
+`SWEEP: <n> worktrees, <n> local branches, <n> remote branches removed`,
+and add anything left in place with the reason.
 
 ## Wrap-up: doc prune check
 
