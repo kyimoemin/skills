@@ -339,7 +339,8 @@ individual `dispatched` lines. Dispatch the whole wave in ONE message
 (`isolation: "worktree"`) so no two implementers share a working tree; a
 single-ticket wave may run in the main checkout without isolation.
 Wait for the entire wave to return before planning the next —
-append each return line as it arrives, and apply step 3's parking to
+append each return line as it arrives — plus `WORKTREE: <ticket> <path>`
+when the tool result reports a worktree it kept — and apply step 3's parking to
 dependents when the next wave is planned. Merges still happen only in the
 merge phase, so `main` never moves under a running wave; branch collisions
 surface, if at all, as ordinary PR conflicts the merge phase already
@@ -424,7 +425,17 @@ approved ticket in order:
    other failing check, skip this ticket, report why, and continue with the
    rest.
 2. **Merge** with `gh pr merge` (repo's default strategy) and delete the
-   ticket branch.
+   ticket branch. A worktree-isolated ticket's branch is still checked out
+   in its worktree, which stops git deleting it, so first find that
+   worktree (`git worktree list --porcelain`, match the branch) and run
+   `git worktree remove <path>` without `--force`. If it refuses, the
+   worktree has uncommitted work: leave it and note it in the report.
+   Then merge with `--delete-branch`. With the worktree left in place,
+   `gh` merges but exits non-zero on the local delete — that is not a
+   failed merge; trust `gh pr view` state. Confirm the remote branch is gone
+   (`git ls-remote --heads origin <branch>` prints nothing) and delete it
+   with `git push origin --delete <branch>` if it isn't. Log
+   `branch deleted` only after that check passes.
 3. **Close tracking:** dispatch a fresh `ticket-implementer` with a
    `close-tracking` prompt — just the ticket ids, PRs, repo path, and the
    tracker location from the run log. It needs nothing else; don't resend
@@ -646,6 +657,28 @@ changes:
 - **Resume.** Look at each mapped repo's newest log. Every one with a
   `PROJECT:` line and no `RUN COMPLETE` belongs to the run. Replay them
   together.
+
+## Wrap-up: branch and worktree sweep
+
+Before the prune check, clean up whatever this run left behind:
+
+- Run `git worktree remove` (never `--force`) on each worktree this run's
+  log records in a `WORKTREE:` line whose ticket is `merged`, or whose
+  worktree is still on its agent placeholder branch (`worktree-agent-*`).
+  Never remove a worktree the log doesn't record — another session's
+  agent may be working in it. Then run `git worktree prune`.
+- Delete the local branches of merged tickets with `git branch -D`. A
+  squash merge leaves `-d` refusing, because git can't see the branch's
+  commits on the base.
+- Delete placeholder branches with `git branch -d`, never `-D`. A
+  placeholder sits at the base commit, so `-d` deletes it; if it refuses,
+  the placeholder holds commits or is checked out elsewhere — leave it.
+- Delete any merged ticket's remote branch that step 2 missed.
+
+Touch only branches this run's log records as `merged`, plus the
+placeholders. Leave parked tickets and open PRs alone. Log one line:
+`SWEEP: <n> worktrees, <n> local branches, <n> remote branches removed`,
+and add anything left in place with the reason.
 
 ## Wrap-up: doc prune check
 
