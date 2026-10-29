@@ -29,9 +29,9 @@ file and the evidence, and carry on with the run.
 
 **Started from a project folder?** If the working directory is not inside a
 git repo and its `CLAUDE.md` has a `## Repos` table (Prefix | Path), this is
-a project run across several repos. Read **Project runs** below before
-anything else; it changes where logs live, how tickets route, and how waves
-form. Everything else in this file still applies, per repo.
+a project run across several repos. Read
+`~/.claude/skills/sprint/reference/project-runs.md` before anything else;
+it changes where logs live, how tickets route, and how waves form. Everything else in this file still applies, per repo.
 
 ## Other sessions
 
@@ -272,7 +272,7 @@ Structure only — the sections around it are the rulebook.
 flowchart TB
     start(["log ready, ORDER: planned"]) --> wave{plan next wave}
     wave --> disp["dispatch the wave in ONE message
-cap 3, worktree-isolated"]
+cap 3 or the repo's limit, worktree-isolated"]
     disp --> impl[["ticket-implementer per ticket
 branch, code + tests, PR, finalize"]]
     impl <-- "findings / fixes" --> rev[["ticket-reviewer
@@ -320,10 +320,13 @@ ticket it depends on has returned `complete`; tickets with no dependency
 edge between them may share a wave and run in parallel. Two things force
 tickets apart even without a dependency link:
 
-- tickets whose tracking lives in the same board FILE — both branches
-  will edit that file off the same base, and every pair that ran together
-  becomes a merge-phase conflict; serializing them doesn't prevent the
-  first conflict, but keeps them from piling up; and
+- tickets that will edit the same shared file off the same base — every
+  pair that ran together becomes a merge-phase conflict. That means
+  tickets whose tracking lives in the same board FILE, and tickets whose
+  scope line (grep it; the body stays unread) shows both will add or
+  upgrade packages (one lockfile) or both add a database migration
+  (migration order and any generated schema types collide). Serializing
+  doesn't prevent the first conflict, but keeps them from piling up; and
 - any ticket whose dependencies you cannot confidently determine. When in
   doubt, serialize: a slow run is recoverable, tangled branches are not.
 
@@ -334,7 +337,11 @@ resume of that run: record it by appending ` (serial)` to the `ORDER:`
 line, and honor it on replay.
 
 Cap a wave at 3 concurrent implementers — a wider wave runs in batches of
-3. When a wave dispatches, append `WAVE: <ids>` to the run log, then the
+the cap. A repo can lower the cap with a `sprint: max <n> parallel` line
+in its `CLAUDE.md` or `AGENTS.md` (each implementer runs the test suite
+and spawns a reviewer, which a small machine feels); grep for it when
+planning, and treat `max 1 parallel` as `serial`. It never raises the cap
+above 3. When a wave dispatches, append `WAVE: <ids>` to the run log, then the
 individual `dispatched` lines. Dispatch the whole wave in ONE message
 (parallel tool calls), each dispatch with worktree isolation
 (`isolation: "worktree"`) so no two implementers share a working tree; a
@@ -582,81 +589,10 @@ closes + files follow-ups"]]
 
 ## Project runs
 
-A project run is started from a folder that holds several repos. That
-folder isn't itself a repo, and its `CLAUDE.md` maps ticket prefixes to
-repos in a `## Repos` table. It lets one session plan across repos whose
-tickets depend on each other. The rest of this file applies with these
-changes:
-
-- **Routing.** A ticket's prefix names its repo (`AD-11` → the `AD` row's
-  path). Each repo keeps its own tracker; find it there as usual. `all`,
-  `auto` and the no-argument listing read every mapped repo's tracker. A
-  ticket whose prefix isn't in the table: stop and ask.
-- **Logs stay per repo.** Each ticket's lines go in its own repo's
-  `.sprint/` log, never the project folder's and never another repo's. That
-  keeps `/watch`, `/qa`, `/standup` and the archive ref working inside each
-  repo. Each repo in the run gets its own log, with its own heading and an
-  `ORDER:` line holding only that repo's tickets. Put `PROJECT: <folder
-  name>` on the line right after its first `ORDER:`. That line is how a
-  resume finds the run's other logs and how a single-repo run knows to
-  keep out. `WAVE:` lines go in each repo's log with that repo's share of
-  the wave.
-- **Keep out of a single-repo run.** A repo whose newest log doesn't end in
-  `RUN COMPLETE` and has no `PROJECT:` line belongs to a run started inside
-  that repo, which may be stopped and waiting on me rather than dead. Don't
-  replay it or add to it, even if it shares tickets with this run. Leave
-  that repo's tickets out, list them as skipped (`owned by
-  <repo>/.sprint/<log>`), and tell me. It's my call whether to finish that
-  run in its repo or tell you it's abandoned.
-- **Dependencies across repos need `merged`, not `complete`.** A ticket
-  that waits on another repo builds against that repo's base branch (its
-  mock server, its API reference), so an open PR upstream doesn't help it.
-  Before
-  dispatching the dependent ticket, put the upstream repo's main checkout
-  on the merged PR's base branch (`gh pr view <n> --json baseRefName`,
-  never the repo default) and bring it up to date: `git -C <repo> checkout
-  <base>`, then `git -C <repo> pull --ff-only`. Do this only if that
-  checkout is clean; if it isn't, stop and tell me. Dependencies inside one
-  repo are unchanged.
-- **Manual mode keeps going after the merge word.** A ticket held on a
-  dependency in another repo can't start until I say merge. My merge word
-  covers the batch I named, so after the merge phase continue with the
-  tickets it unblocked: new waves, then stop again before their merge as
-  usual. `auto` handles this with its passes already.
-- **Waves: one ticket per repo, no worktree isolation.** The project folder
-  isn't a repo, so `isolation: "worktree"` has nothing to isolate from.
-  Each implementer works in its repo's main checkout, so a wave takes at
-  most one ticket per repo. Parallelism comes from different repos. To run
-  several tickets of ONE repo in parallel, run `/sprint` inside that repo.
-  A **hub** repo (`yes` in the table's Hub column) is one the others run
-  against from its main checkout, such as a mock server. A hub ticket never
-  shares a wave with a ticket from another repo, because that implementer
-  would be testing against whatever branch the hub implementer has checked
-  out. Hub tickets run in their own waves; the other repos' tickets run in
-  parallel with each other. An implementer leaves its checkout on its
-  ticket branch, so after every hub wave put the hub's main checkout back
-  on the base its PRs target (`git -C <hub> checkout <base>`, from
-  `baseRefName`), if the checkout is clean. If it isn't, stop and tell me.
-  Otherwise the next wave tests against unmerged hub code.
-- **Dispatch.** The repo path is the ticket's repo. Add `cwd: <repo path>`
-  to the prompt, since the implementer starts in the project folder. Send
-  the `DECISION:` lines from every log in this run, not just the ticket's
-  repo, because a decision in one repo can change a ticket in another.
-- **Close-tracking: one dispatch per repo** per merge phase. Each repo has
-  its own tracker file.
-- **One watcher, archive per repo.** Start the watcher once, on the
-  project folder, when the first log exists: `bun run
-  ~/.claude/skills/watch/scripts/render-md.ts <project folder> --watch`. It
-  keeps every repo's own progress file up to date and writes the combined
-  `<project folder>/sprint-progress.md`, and it picks up a repo whose
-  `.sprint/` appears later. Run the archive sync with each repo as the
-  working directory. The recipe's paths are relative to the repo root.
-- **Ending.** When the run stops or finishes, give every repo log its own
-  terminator (`RUN STOPPED awaiting: …` or `RUN COMPLETE`), judged on that
-  log's tickets alone. The report covers every repo.
-- **Resume.** Look at each mapped repo's newest log. Every one with a
-  `PROJECT:` line and no `RUN COMPLETE` belongs to the run. Replay them
-  together.
+A run started from a project folder (see the top of this file) follows
+`~/.claude/skills/sprint/reference/project-runs.md` — read it before
+planning: it changes routing, logs, waves, dispatch, close-tracking, the
+watcher, ending and resume. A single-repo run never needs it.
 
 ## Wrap-up: branch and worktree sweep
 
@@ -702,49 +638,19 @@ growth is insertions minus deletions.
 
 - **Under 150 lines** → append `PRUNE: skipped, +<n> lines since <sha>` and
   move on. Don't mention it in the report.
-- **150 or more** → dispatch the prune subagent (below) with
+- **150 or more** → dispatch the prune subagent (`reference/prune.md`) with
   `run_in_background: false` — you need its return before `RUN COMPLETE`.
   Then `git rev-parse origin/<base> > .sprint/prune-last`, append
   `PRUNE: proposed <its one line>, .sprint/prune-<run log name>.md`, and put
   that line in the final report. Updating `prune-last` now, not when cuts
   merge, is deliberate: a proposal I decline must not come back next run.
 
-**The dispatch** is one fresh `general-purpose` subagent with the repo path,
-the doc list, the output path, and this brief: read each doc end to end;
-for every section, ask whether it still changes what an agent or I would
-do. Propose cuts, merges of sections that say the same thing, and notes
-that are outdated or contradicted by the code or a later decision — each
-with the lines affected and a one-line reason. Keep rules that record a
-past failure even when they look redundant, and say so rather than cut
-them; the story behind a rule isn't in the doc. Write the proposal to the
-output path in the main checkout (`.sprint/prune-<run log name>.md`, e.g.
-`prune-sprint-16-3.md`). Edit no tracked file. Return one line: cuts
-proposed and lines saved.
-
-You don't read the proposal — I do. Applying it is outside this run: it
-rides along with the NEXT run's close-tracking, so doc edits never get a
-PR (and a version bump) of their own, and closing tickets never waits on
-my doc review.
-
-- **When I approve** some or all of it (any time, in or after the run),
-  write `.sprint/prune-approved`: the proposal path on the first line, then
-  the approved item numbers (or `all`) and any changes I asked for, one per
-  line. It's a state file, not a log, so the Write tool is fine. Then sync
-  the archive — the next run may be on another machine.
-- **At the next close-tracking dispatch** (merge phase step 3), read
-  `prune-approved` from the archive first, falling back to the local file,
-  as for `prune-last`. If it exists, add to the prompt
-  `prune: apply <items> from <proposal path>` plus my changes. On a card
-  tracker, where a close makes no commit, there is nothing to ride on:
-  dispatch the cuts as a standalone PR instead (below).
-- **When that close lands** (direct commit, or tracking PR merged), delete
-  `.sprint/prune-approved`, append `PRUNE: applied <items> from <proposal>,
-  <sha | tracking PR #n>`, and sync.
-
-If I want the cuts in now rather than at the next close, dispatch a
-`general-purpose` subagent to make them as an ordinary PR under the repo's
-workflow (branch, version bump and changelog if the repo requires them),
-and merge only on my word, like any PR.
+**The dispatch, my approval, and applying the cuts** are in
+`~/.claude/skills/sprint/reference/prune.md` — read it when the check above
+says a pass is due, when I approve or ask for prune cuts, and at a
+close-tracking dispatch whenever `.sprint/prune-approved` exists (check the
+archive first, `git show refs/sprint/archive:.sprint/prune-approved`, then
+the local file).
 
 ## Syncing `.sprint/` to the archive ref
 
