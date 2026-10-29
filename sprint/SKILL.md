@@ -435,7 +435,11 @@ approved ticket in order:
    ticket branch. A worktree-isolated ticket's branch is still checked out
    in its worktree, which stops git deleting it, so first find that
    worktree (`git worktree list --porcelain`, match the branch) and run
-   `git worktree remove <path>` without `--force`. If it refuses, the
+   `git worktree remove <path>` without `--force`. If it refuses because
+   the worktree is locked and the lock reason names `claude agent
+   agent-<id>`, that is the harness's lock on an agent that has already
+   returned: `git worktree unlock <path>` and retry, still without
+   `--force`. If it refuses otherwise, the
    worktree has uncommitted work: leave it and note it in the report.
    Then merge with `--delete-branch`. With the worktree left in place,
    `gh` merges but exits non-zero on the local delete — that is not a
@@ -601,7 +605,7 @@ Before the prune check, clean up whatever this run left behind:
 - Run `git worktree remove` (never `--force`) on each worktree this run's
   log records in a `WORKTREE:` line whose ticket is `merged`, or whose
   worktree is still on its agent placeholder branch (`worktree-agent-*`).
-  Never remove a worktree the log doesn't record — another session's
+  Unlock a harness-locked one first, as in merge step 2. Never remove a worktree the log doesn't record — another session's
   agent may be working in it. Then run `git worktree prune`.
 - Delete the local branches of merged tickets with `git branch -D`. A
   squash merge leaves `-d` refusing, because git can't see the branch's
