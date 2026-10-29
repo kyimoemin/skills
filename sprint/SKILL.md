@@ -58,18 +58,19 @@ It is local-only: add `.sprint/` to `.git/info/exclude` if it isn't there —
 NOT to `.gitignore`, which is a tracked file and would either dirty the tree
 (blocking every implementer) or drop an unrelated change into someone's PR.
 
-**Check the `.sprint` write permission before the first dispatch.** Every
-reviewer writes a round file under `.sprint/`, deep inside a dispatch —
-where a permission prompt stalls the run, and an unattended run auto-denies
-it and loses the audit trail. So read `~/.claude/settings.json` and `~/.claude/settings.local.json` and
-look for `Edit(//**/.sprint/**)` in either one's `permissions.allow`. If it
-isn't there, say so in one line before you dispatch anything and let me
-decide whether to add it — it widens your own permissions, so it is mine to
-grant, not yours to take. A relative `Edit(**/.sprint/**)` is not enough:
-relative patterns resolve against the working directory, and a
-worktree-isolated implementer or reviewer writes to the MAIN checkout's
-`.sprint/`, outside its own. Note for me if I ask: a `Write(...)` path rule
-is never consulted; only `Edit(...)` path rules are, and they cover writes.
+**Check the `.sprint` write permission before the first dispatch.** You
+append the run log, and the prune and archive steps write under `.sprint/`,
+all mid-run — where a permission prompt stalls the run, and an unattended
+run auto-denies it and loses the log. So read `~/.claude/settings.json` and
+`~/.claude/settings.local.json` and look for `Edit(//**/.sprint/**)` in
+either one's `permissions.allow`. If it isn't there, say so in one line
+before you dispatch anything and let me decide whether to add it — it
+widens your own permissions, so it is mine to grant, not yours to take.
+Implementers and reviewers write nothing under `.sprint/`: the review record
+is the reviewers' PR comments, because a worktree-isolated agent can't write outside
+its worktree whatever the rule says. Note for me if I ask: a `Write(...)`
+path rule is never consulted; only `Edit(...)` path rules are, and they
+cover writes.
 
 Append to the run log with a quoted heredoc — not the Edit or Write tool,
 which rewrite the whole file, and not `echo '…'`, which breaks on the first
@@ -359,15 +360,14 @@ Per ticket:
    read from the run log, and any `ANSWER:` lines for this ticket. On a
    worktree-isolated dispatch, the repo path you pass is still the MAIN
    checkout, and the prompt must say `worktree: yes` — the implementer
-   works in its isolated worktree but routes everything under `.sprint/`
-   to the main checkout, and needs to know which situation it is in. The
+   works in its isolated worktree, never writes under `.sprint/`, and
+   needs to know which situation it is in. The
    implementer reads the ticket body from that source itself; paste the
    full description and acceptance criteria into the prompt only when
    the ticket has no source an implementer can read. The implementer runs the whole ticket
    itself — implementation, its own independent review loop (fresh
-   read-only `ticket-reviewer` subagent per round, max 3 rounds, round
-   files written to
-   `.sprint/review-<ticket>-r<N>.md`), and finalize. Nothing routes
+   `ticket-reviewer` subagent per round, max 3 rounds, each round posted
+   as a PR comment), and finalize. Nothing routes
    through you: you see only its final report.
 3. **On return:** if status is `blocked` or `failed` → append the return
    line with the reason, append `<ticket> parked`, and continue with the
@@ -388,7 +388,7 @@ Per ticket:
 4. **Record:** append the return line to the run log — status, PR, review
    rounds, head SHA, card column, tracker location. If the report listed a
    cross-cutting decision, append it to the decisions log too. The round
-   files under `.sprint/` are the review audit trail; leave them, don't read
+   comments on the PR are the review audit trail; leave them, don't read
    them now.
 5. **Report to me** in one line — ticket, PR, review rounds, card column —
    and move on.
