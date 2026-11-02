@@ -42,6 +42,10 @@ Check a merged ticket only when it has all of these:
   If every path is a doc (`*.md`, or under `docs/`), it's
   `skipped: docs only`. The regression run still covers the batch.
 
+Write each skip to the ticket's next free results file as a one-line
+`skipped: <reason>` entry. That's how /deploy's gate and `recent` see the
+ticket was handled.
+
 ## Dispatch
 
 Run verifiers one at a time, synchronously, in the foreground. They drive
@@ -77,8 +81,10 @@ The verifier returns one line: `pass`, `pass with <n> unverifiable → <path>`,
 run that finished, pass or fail. Read it from the archive first
 (`git show refs/sprint/archive:.sprint/qa-baseline`), then the local file.
 A ticket merged at or before that commit is covered by the regression
-run, so `recent` leaves it out. After a regression run that didn't block,
-write `git rev-parse origin/<base>` to the file.
+run, so `recent` leaves it out. Right before dispatching a regression run,
+capture `git rev-parse HEAD` in the main checkout: that's the commit the
+suite tests. After a run that didn't block, write that commit to the file,
+never a later `origin/<base>`, which could cover work merged mid-run.
 
 ## Failures become bug tickets
 

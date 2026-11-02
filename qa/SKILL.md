@@ -2,7 +2,7 @@
 description: Functional QA on merged work — pick the merged tickets in scope, dispatch a qa-verifier per ticket to exercise its acceptance criteria against the running app (plus the repo's regression suite, if it has one), then propose bug tickets for failures and file them on go-ahead.
 argument-hint: "[TICKET-IDs space separated | recent | regression]"
 disable-model-invocation: true
-allowed-tools: Bash(git *), Bash(gh *)
+allowed-tools: Bash(git *), Bash(gh *), Bash(claude agents --json), Bash(echo $PPID)
 ---
 
 # QA
@@ -29,10 +29,13 @@ Verifiers need the main checkout clean and on the base branch, and they
 drive the one simulator and test account. A running sprint needs both.
 Before scoping, look at the newest run log in `.sprint/` (a `.md` whose
 first entry is an `ORDER:` line, under an optional `#` heading). If its
-last line is neither `RUN COMPLETE` nor `RUN STOPPED …`, a run is active:
-stop and tell me. If that run's repo opted in, its own QA phase covers it.
-Also run `claude agents --json`. If another `busy` session's cwd is inside
-this repo, name it and wait for my word.
+last line is neither `RUN COMPLETE` nor `RUN STOPPED …`, a run may be
+active. /sprint also leaves a log like that after merging a subset, and a
+crashed session does too, so name the log and wait for my word. If that
+run's repo opted in, its own QA phase covers it.
+Also run `claude agents --json` and `echo $PPID` (this session's pid). If
+another `busy` session (pid ≠ `$PPID`) has a cwd inside this repo, name it
+and wait for my word. If the command fails, say so in one line and carry on.
 
 ## Scope
 

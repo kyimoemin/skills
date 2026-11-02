@@ -452,13 +452,15 @@ approved ticket in order:
    failed merge; trust `gh pr view` state. Confirm the remote branch is gone
    (`git ls-remote --heads origin <branch>` prints nothing) and delete it
    with `git push origin --delete <branch>` if it isn't. Log
-   `branch deleted` only after that check passes.
+   `branch deleted` only after that check passes. Append the
+   `<ticket> merged, …` line now, before the migration and the QA phase: a
+   replay and the progress file both read QA lines against it.
 
    **Apply its migration.** Sometimes the repo's `CLAUDE.md` or
    `AGENTS.md` says reviewed migrations go to a shared development
    database (Coachcard: `npx supabase db push`). If so, and the merged PR
    adds a migration (`gh pr view <n> --json files`), apply it now. Run it
-   from the main checkout, after pulling the base with `--ff-only`, using
+   from the main checkout on the base, after pulling with `--ff-only`, using
    the repo's documented command and adding its non-interactive flag
    (`--yes`). Log `MIGRATE: <ticket> applied` or
    `MIGRATE: <ticket> failed: <reason>`. A failure doesn't unmerge
@@ -482,9 +484,8 @@ approved ticket in order:
    there is nothing to close. If approved prune cuts are waiting
    (`.sprint/prune-approved`, see the wrap-up), add a `prune:` line to
    this dispatch so they land in the same commit or tracking PR.
-5. **Report** one line: ticket, PR merged, tracking closed — and append the
-   merge to the run log. When the close lands, append
-   `<ids> tracking closed, <commit sha | tracking PR #n>`.
+5. **Report** one line: ticket, PR merged, tracking closed. When the close
+   lands, append `<ids> tracking closed, <commit sha | tracking PR #n>`.
 
 **A tracking PR** is covered by the merge word that approved its tickets —
 it is the bookkeeping those merges made true, so it doesn't wait for a
@@ -558,11 +559,18 @@ test the integrated base, not one PR. Read
 - the main checkout as the repo path;
 - the base branch.
 
-No implementer is running at this point, so the main checkout and the
-machine are free. If a `MIGRATE:` line failed for a ticket, don't dispatch
-its verifier. Log it `blocked` with that reason, and write the `blocked:`
-entry to its results file as phase.md says for a blocked return. Without
-that file, the next regression baseline would swallow the ticket.
+No implementer is running at this point, so the machine is free. One may
+have left the main checkout on its ticket branch, so if it's clean, put it
+on the base and pull with `--ff-only` before the first verifier. If it's
+dirty, phase.md's stop applies: log each ticket `qa blocked` with that
+reason and write its `blocked:` entry.
+
+If a `MIGRATE:` line failed for a ticket, don't dispatch its verifier. Log
+it `blocked` with that reason, and write the `blocked:` entry to its results
+file as phase.md says for a blocked return. Without that file, the next
+regression baseline would swallow the ticket. The regression run is blocked
+the same way, because the schema is wrong for the whole suite and a blocked
+run doesn't move the baseline.
 
 Log a line right before each verifier starts, so the progress file can
 show the check as running, then one result line when it returns:
@@ -586,8 +594,10 @@ failed`) or the blocked question; leave it out for a clean pass.
   ticket is merged either way. They go in the final report under
   "QA needs you", with the question or the criterion that needs a human.
 - **Replay:** in an opted-in repo, a ticket logged `merged` with no `qa`
-  line still needs its check. Run it before that ticket's close-tracking
-  dispatch.
+  result line still needs its check, and a bare `qa dispatched` was
+  interrupted. Run it before that ticket's close-tracking dispatch. If the
+  repo has a suite and no `QA: regression` result follows the batch's last
+  ticket check, run the suite after those checks.
 
 ## Auto loop
 
