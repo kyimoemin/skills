@@ -78,7 +78,7 @@ function repoUrlOf(projectDir: string): string | undefined {
 
 const STATE_BADGE: Record<string, string> = {
   "qa-pass": "🟢 qa-pass",
-  merged: "🟢 merged",
+  merged: "🟣 merged",
   "ready-to-merge": "🟡 ready-to-merge",
   parked: "🟡 parked",
   "merge-skipped": "🟠 merge-skipped",
@@ -86,6 +86,7 @@ const STATE_BADGE: Record<string, string> = {
   failed: "🟠 failed",
   "qa-fail": "🔴 qa-fail",
   "in-progress": "🔵 in-progress",
+  "qa-running": "🔵 qa-running",
   pending: "⚪ pending",
 };
 const badge = (state: string): string =>
@@ -181,7 +182,7 @@ export function funnel(state: DashState) {
     state.tickets.filter((t) => names.some((n) => t.state === n || t.state.startsWith(n)));
   const working = inState("in-progress", "in-review");
   const ready = inState("ready-to-merge");
-  const merged = inState("merged", "qa-pass", "qa-fail");
+  const merged = inState("merged", "qa-running", "qa-pass", "qa-fail");
   // merge-skipped too: otherwise it falls through to pending and reads
   // as "not dispatched yet"
   const stuck = inState("parked", "blocked", "failed", "merge-skipped");
@@ -211,7 +212,10 @@ export function renderMarkdown(state: DashState): string {
   lines.push(`Source: \`${state.sourceLog ?? "?"}\` — derived read-only; do not edit by hand.`);
   lines.push("");
 
-  lines.push(...waitingSection(state, `Nothing waiting on you — implementers are working.`));
+  const runningNote = state.qaRunning?.length
+    ? `Nothing waiting on you — QA running: ${state.qaRunning.join(", ")}.`
+    : `Nothing waiting on you — implementers are working.`;
+  lines.push(...waitingSection(state, runningNote));
   if (state.proposed?.length) {
     // not a stop: the loop keeps running; these wait for my triage whenever
     lines.push(`## 📝 Proposed for your triage`, "");
@@ -223,7 +227,7 @@ export function renderMarkdown(state: DashState): string {
     { id: "n0", label: `planned ${state.tickets.length}`, n: state.tickets.length, cls: "pending" },
     { id: "n1", label: `working ${working.length}`, n: working.length, cls: "active" },
     { id: "n2", label: `ready to merge ${ready.length}`, n: ready.length, cls: "waiting" },
-    { id: "n3", label: `merged ${merged.length}`, n: merged.length, cls: "done" },
+    { id: "n3", label: `merged ${merged.length}`, n: merged.length, cls: "merged" },
   ];
   lines.push("## Progress");
   lines.push("");
@@ -233,7 +237,7 @@ export function renderMarkdown(state: DashState): string {
   if (stuck.length) lines.push(`    n4["${mermaidLabel(`parked ${stuck.length}`)}"]`);
   for (const c of strip) lines.push(`    class ${c.id} ${c.n ? c.cls : "pending"}`);
   if (stuck.length) lines.push(`    class n4 waiting`);
-  lines.push(`    classDef done fill:#0ca30c22,stroke:#0ca30c`);
+  lines.push(`    classDef merged fill:#8855cc22,stroke:#8855cc`);
   lines.push(`    classDef active fill:#4477cc22,stroke:#4477cc,stroke-width:2px`);
   lines.push(`    classDef waiting fill:#fab21922,stroke:#fab219,stroke-width:2px`);
   lines.push(`    classDef pending fill:transparent,stroke:#8a8a84`);

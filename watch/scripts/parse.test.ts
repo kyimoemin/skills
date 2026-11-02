@@ -468,3 +468,47 @@ FILED: skipped, duplicate of ABC-0: flaky clock
     expect(s.mode).toBe("auto · serial");
   });
 });
+
+describe("sprint view — QA phase in flight", () => {
+  const build = (log: string) =>
+    buildSprintState({
+      sprint: parseSprintLog(log),
+      sprintId: "sprint-12",
+      roundFiles: [],
+      qaSignals: [],
+      now: new Date("2026-10-30T12:00:00Z"),
+    });
+  const merged = "ORDER: CC-1, CC-2 (auto)\nCC-1 dispatched\nCC-2 dispatched\nCC-1 merged, PR #1\nCC-2 merged, PR #2\n";
+
+  test("a dispatched QA check is qa-running, not back in progress", () => {
+    const s = build(merged + "CC-1 qa dispatched\n");
+    expect(s.tickets.map((t) => t.state)).toEqual(["qa-running", "merged"]);
+    expect(s.qaRunning).toEqual(["CC-1"]);
+  });
+
+  test("a qa result line ends the running state", () => {
+    const s = build(merged + "CC-1 qa dispatched\nCC-1 qa pass, .sprint/qa-CC-1.md\n");
+    expect(s.tickets[0].state).toBe("merged");
+    expect(s.qaRunning).toBeUndefined();
+  });
+
+  test("a rerun outranks an older results file", () => {
+    const s = buildSprintState({
+      sprint: parseSprintLog(merged + "CC-1 qa dispatched\n"),
+      sprintId: "sprint-12",
+      roundFiles: [],
+      qaSignals: [{ ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "fail" }],
+      now: new Date("2026-10-30T12:00:00Z"),
+    });
+    expect(s.tickets[0].state).toBe("qa-running");
+  });
+
+  test("the regression run shows while dispatched and clears on its result", () => {
+    expect(build(merged + "QA: regression dispatched\n").qaRunning).toEqual(["regression"]);
+    expect(build(merged + "QA: regression dispatched\nQA: regression pass, .sprint/qa-regression.md\n").qaRunning).toBeUndefined();
+  });
+
+  test("nothing reads as running once the run is complete", () => {
+    expect(build(merged + "CC-1 qa dispatched\nRUN COMPLETE\n").qaRunning).toBeUndefined();
+  });
+});

@@ -381,3 +381,20 @@ describe("project folder", () => {
     expect((await generateProject(empty, projectRepos(empty)!, () => undefined)).complete).toBe(false);
   });
 });
+
+describe("QA phase in the running panel", () => {
+  const render = (log: string) =>
+    renderMarkdown(buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", roundFiles: [], qaSignals: [], now: NOW }));
+
+  test("names what QA is checking instead of implementers", () => {
+    const md = render("ORDER: CC-1 (auto)\nCC-1 dispatched\nCC-1 merged, PR #1\nCC-1 qa dispatched\n");
+    expect(md).toContain("Nothing waiting on you — QA running: CC-1.");
+    expect(md).toContain("🔵 qa-running");
+    expect(md).not.toContain("implementers are working");
+  });
+
+  test("the regression run is named too", () => {
+    const md = render("ORDER: CC-1 (auto)\nCC-1 merged, PR #1\nCC-1 qa pass, x\nQA: regression dispatched\n");
+    expect(md).toContain("QA running: regression.");
+  });
+});
