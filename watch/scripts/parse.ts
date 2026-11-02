@@ -19,6 +19,7 @@ export interface TicketEvents {
   headSha?: string;
   readyToMerge: boolean;
   mergeSkipped?: string; // /sprint auto: the merge phase skipped it, with why
+  qaRunning?: boolean; // `<ticket> qa dispatched` with no qa result line after it yet
   answers: string[];
 }
 
@@ -34,6 +35,7 @@ export interface SprintParse {
   auto: boolean; // an ORDER: line carries "(auto)" — /sprint auto merges itself
   proposed: string[]; // FILED: … proposed — follow-ups awaiting my triage
   waves: string[][]; // WAVE: lines, in dispatch order
+  regressionRunning: boolean; // `QA: regression dispatched` with no result line after it yet
   rawTail: string[];
 }
 
@@ -78,6 +80,7 @@ export interface DashState {
   waves?: string[][];
   sprintRun?: number; // the -N suffix, 1 when unsuffixed
   proposed?: string[]; // follow-ups filed for my triage
+  qaRunning?: string[]; // ticket ids (and "regression") whose QA check is running now
   repoUrl?: string; // https base of the GitHub origin, for PR links
   generatedAt: string;
 }
@@ -127,6 +130,7 @@ export function parseSprintLog(text: string): SprintParse {
     auto: false,
     proposed: [],
     waves: [],
+    regressionRunning: false,
     rawTail: lines.filter(Boolean).slice(-15),
   };
   // A stop line only names what it waits on; the reason is the NOTE: the
@@ -223,6 +227,13 @@ export function parseSprintLog(text: string): SprintParse {
       out.proposed.push(`${m[1]} ${m[2]}${from}`);
       continue;
     }
+    if ((m = line.match(/^QA:\s*regression\s+(dispatched|pass|fail|blocked)\b/i))) {
+      // the QA phase's suite run: dispatched before the verifier starts,
+      // a result line when it returns
+      resume();
+      out.regressionRunning = m[1].toLowerCase() === "dispatched";
+      continue;
+    }
     if ((m = line.match(/^DECISION:\s*(.+)$/))) {
       out.decisions.push(m[1].trim());
       continue;
@@ -242,6 +253,15 @@ export function parseSprintLog(text: string): SprintParse {
     const [, id, rest] = idMatch;
     const t = get(id);
     resume();
+
+    // QA phase: `<ticket> qa dispatched` before its verifier runs, then
+    // `<ticket> qa pass|fail|blocked|skipped, …` when it returns. Checked
+    // before the dispatch rule below, which would read "qa" as a qualifier
+    // and put a merged ticket back to work.
+    if ((m = rest.match(/^qa\s+(dispatched|pass|fail|blocked|skipped)\b/i))) {
+      t.qaRunning = m[1].toLowerCase() === "dispatched";
+      continue;
+    }
 
     // Re-dispatches are written many ways ("re-dispatched", "amend
     // re-dispatched", "resume-dispatch dispatched", "re-dispatch (agent
@@ -384,7 +404,11 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
 
     const merged = ev?.mergedInLog || t.pr?.state === "MERGED";
 
-    if (merged && t.qa === "fail") {
+    if (merged && ev?.qaRunning) {
+      // a rerun outranks an older results file still on disk
+      t.state = "qa-running";
+      t.detail = "QA check running";
+    } else if (merged && t.qa === "fail") {
       t.state = "qa-fail";
       t.detail = "merged, QA failed — bugs filed per fold/backlog choice";
     } else if (merged && t.qa === "pass") {
@@ -450,6 +474,14 @@ export interface SprintBuildInputs {
   now: Date;
 }
 
+/** What the QA phase is checking right now; undefined when nothing is. */
+function qaRunningNow(sp: SprintParse, tickets: TicketState[]): string[] | undefined {
+  if (sp.run === "complete") return undefined;
+  const running = tickets.filter((t) => t.state === "qa-running").map((t) => t.id);
+  if (sp.regressionRunning) running.push("regression");
+  return running.length ? running : undefined;
+}
+
 /** A standalone /sprint run: one log, no feature pipeline around it. */
 export function buildSprintState(inp: SprintBuildInputs): DashState {
   const sp = inp.sprint;
@@ -494,6 +526,7 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
     waves: sp.waves,
     sprintRun: inp.sprintRun,
     proposed: sp.proposed.length ? sp.proposed : undefined,
+    qaRunning: qaRunningNow(sp, tickets),
     generatedAt: inp.now.toISOString(),
   };
 }

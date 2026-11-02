@@ -26,7 +26,7 @@ my doc review.
   the approved item numbers (or `all`) and any changes I asked for, one per
   line. It's a state file, not a log, so the Write tool is fine. Then sync
   the archive — the next run may be on another machine.
-- **At the next close-tracking dispatch** (merge phase step 3), read
+- **At the next close-tracking dispatch** (merge phase step 4), read
   `prune-approved` from the archive first, falling back to the local file,
   as for `prune-last`. If it exists, add to the prompt
   `prune: apply <items> from <proposal path>` plus my changes. On a card

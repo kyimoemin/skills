@@ -37,6 +37,14 @@ re-runs after a failed attempt.
      local files on macOS's tar, GNU tar wants `--skip-old-files`). Still
      no QA results → say so and ask whether to run
      /qa first or ship without it; don't silently skip the gate.
+     A ticket merged at or before `.sprint/qa-baseline` needs no file of
+     its own (the regression run covered it, per
+     `~/.claude/skills/qa/reference/phase.md`), and a file recording
+     `skipped: <reason>` counts as a result; name those tickets in the
+     report. If the repo's `CLAUDE.md` or `AGENTS.md` has a `qa: regression`
+     line, apply the same check to `.sprint/qa-regression.md` or its
+     highest `-<N>` rerun: failed or blocked → stop and report, even when
+     every ticket passed.
 3. **Version & changelog.** Infer the versioning scheme from tags and the
    package manifest, and judge the bump from the merged changes since the
    last release. If the project keeps a changelog, draft the entry in its
