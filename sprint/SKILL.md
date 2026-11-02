@@ -294,9 +294,13 @@ head SHA matches the log"]
     verify -- "conflicts" --> redisp["re-dispatch implementer
 resume: rebase — it re-reviews, new SHA"]
     redisp --> verify
-    verify -- "ok" --> merged["gh pr merge, delete branch"]
-    merged --> close[["close-tracking dispatch
-card moves to done, + approved prune cuts"]]
+    verify -- "ok" --> merged["gh pr merge, delete branch
+apply its migration if it adds one"]
+    merged --> qa[["QA phase, if the repo opts in
+qa-verifier per merged ticket + regression run"]]
+    qa --> close[["close-tracking dispatch
+card moves to done, + approved prune cuts
++ follow-ups and QA bugs filed"]]
     close --> all{"every named ticket merged,
 none parked, no tracking PR open?"}
     all -- "no" --> stop
@@ -412,7 +416,9 @@ summary, confirm no card is left in a state that contradicts its PR.
 When all tickets are done (or the run stopped): report a summary — one line
 per ticket with PR url, PR state, and the card's current column — which
 PRs now await merge approval, and every parked ticket with the question or
-reason it is waiting on (all blockers in one place, not drip-fed). Flag any card sitting in done whose PR you
+reason it is waiting on (all blockers in one place, not drip-fed). If a QA
+phase ran, add its results: one line per ticket, the regression line, bugs
+filed, and "QA needs you" (blocked questions, unverifiable criteria). Flag any card sitting in done whose PR you
 haven't merged; that's a tracking error for me to resolve, not a finished
 ticket.
 Then STOP and wait for my merge instruction. Never merge without it —
@@ -447,7 +453,23 @@ approved ticket in order:
    (`git ls-remote --heads origin <branch>` prints nothing) and delete it
    with `git push origin --delete <branch>` if it isn't. Log
    `branch deleted` only after that check passes.
-3. **Close tracking:** dispatch a fresh `ticket-implementer` with a
+
+   **Apply its migration.** Sometimes the repo's `CLAUDE.md` or
+   `AGENTS.md` says reviewed migrations go to a shared development
+   database (Coachcard: `npx supabase db push`). If so, and the merged PR
+   adds a migration (`gh pr view <n> --json files`), apply it now. Run it
+   from the main checkout, after pulling the base with `--ff-only`, using
+   the repo's documented command and adding its non-interactive flag
+   (`--yes`). Log `MIGRATE: <ticket> applied` or
+   `MIGRATE: <ticket> failed: <reason>`. A failure doesn't unmerge
+   anything, so treat it like a merge skip: notify me, carry on, and
+   that ticket's QA check is `blocked`. Never run a reset or anything
+   that drops data.
+3. **QA phase**, when the repo opts in. It comes after the last merge and
+   before the close-tracking dispatch (on a card tracker, before the last
+   ticket's dispatch), so the QA bugs ride on that dispatch. See
+   **QA phase** below.
+4. **Close tracking:** dispatch a fresh `ticket-implementer` with a
    `close-tracking` prompt — just the ticket ids, PRs, repo path, and the
    tracker location from the run log. It needs nothing else; don't resend
    the ticket body. On a card tracker, dispatch per ticket right after its
@@ -460,7 +482,7 @@ approved ticket in order:
    there is nothing to close. If approved prune cuts are waiting
    (`.sprint/prune-approved`, see the wrap-up), add a `prune:` line to
    this dispatch so they land in the same commit or tracking PR.
-4. **Report** one line: ticket, PR merged, tracking closed — and append the
+5. **Report** one line: ticket, PR merged, tracking closed — and append the
    merge to the run log. When the close lands, append
    `<ids> tracking closed, <commit sha | tracking PR #n>`.
 
@@ -497,7 +519,7 @@ An implementer's report may carry follow-ups: bugs or improvements it
 confirmed in the code but that fall outside its ticket. Append each on
 return as `FOLLOWUP: <ticket> bug|improvement: <one line>`, so they
 survive an interruption. Filing them is a tracker edit, so it rides on
-the close-tracking dispatch (merge phase step 3) — on a card tracker, on
+the close-tracking dispatch (merge phase step 4) — on a card tracker, on
 the phase's last close-tracking dispatch — as one line per follow-up not
 yet filed:
 
@@ -521,6 +543,52 @@ since there is no merged PR for it to read the base from. For each line it
 returns, append `FILED: <new id> ready|proposed <kind> from <ticket>`, or
 `FILED: skipped, duplicate of <id>: <one line>`.
 
+## QA phase
+
+A repo opts in with a `sprint: qa after merge` line in its `CLAUDE.md` or
+`AGENTS.md`. Grep for it when planning, alongside the parallel cap. Without
+it, there's no QA phase and none of this section applies.
+
+It runs once per merge phase, not per ticket, for two reasons. QA drives
+the app, which a small machine feels on top of implementers. And it should
+test the integrated base, not one PR. Read
+`~/.claude/skills/qa/reference/phase.md` and follow it, with these inputs:
+- the tickets this merge phase merged (each ticket's tracker location and
+  PR from the log);
+- the main checkout as the repo path;
+- the base branch.
+
+No implementer is running at this point, so the main checkout and the
+machine are free. If a `MIGRATE:` line failed for a ticket, don't dispatch
+its verifier. Log it `blocked` with that reason, and write the `blocked:`
+entry to its results file as phase.md says for a blocked return. Without
+that file, the next regression baseline would swallow the ticket.
+
+Log a line right before each verifier starts, so the progress file can
+show the check as running, then one result line when it returns:
+
+```
+<ticket> qa dispatched
+<ticket> qa pass|fail|blocked|skipped, <detail>, <results path or reason>
+QA: regression dispatched
+QA: regression pass|fail|blocked, <results path>
+```
+
+A skipped ticket gets only its result line; no verifier runs.
+
+`<detail>` is the verifier's count (`2 unverifiable`, `1 of 4 criteria
+failed`) or the blocked question; leave it out for a clean pass.
+
+- **Failures** become `file:` lines on this phase's close-tracking dispatch,
+  drafted and loop-guarded as phase.md says. Outside `auto`, list them in
+  the summary instead of filing.
+- **Blocked checks and unverifiable criteria don't stop anything.** The
+  ticket is merged either way. They go in the final report under
+  "QA needs you", with the question or the criterion that needs a human.
+- **Replay:** in an opted-in repo, a ticket logged `merged` with no `qa`
+  line still needs its check. Run it before that ticket's close-tracking
+  dispatch.
+
 ## Auto loop
 
 `auto` means I have pre-authorized every merge this run makes and want it
@@ -534,8 +602,9 @@ minus merged / parked / skipped"] --> any{anything ready?}
 waves, as usual"]
     pass --> merge["merge phase on every complete ticket
 + its tracking PR, no word needed"]
-    merge --> file[["close-tracking dispatch
-closes + files follow-ups"]]
+    merge --> qa[["QA phase, if the repo opts in"]]
+    qa --> file[["close-tracking dispatch
+closes + files follow-ups and QA bugs"]]
     file --> pick
     any -- "no" --> held{"parked or skipped?"}
     held -- "yes" --> stopped(["RUN STOPPED awaiting + notify"])
@@ -565,6 +634,11 @@ closes + files follow-ups"]]
   - a parked ticket (its implementer needs my answer),
   - a merge skip (something failed that a rebase doesn't fix),
   - a tracking PR that isn't bookkeeping or won't verify.
+
+  QA results never stop it. A failure is filed as a `ready` bug that the
+  next pass fixes. A blocked check waits in the report. A pass that fixes
+  a QA bug gets its own QA phase, and the loop guard keeps a bug found in
+  that fix from feeding the loop.
 
   None of these halts the other work: log it, send me a push notification
   naming the repo, the ticket and the one-line reason (the PushNotification
