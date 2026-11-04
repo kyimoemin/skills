@@ -26,7 +26,8 @@ regression run, recording returns, the baseline, drafting bugs — are in
 ## Not during a sprint run
 
 Verifiers need the main checkout clean and on the base branch, and they
-drive the one simulator and test account. A running sprint needs both.
+drive the QA simulator and test account (one per lane, if the repo
+declares lanes; see phase.md). A running sprint needs both.
 Before scoping, look at the newest run log in `.sprint/` (a `.md` whose
 first entry is an `ORDER:` line, under an optional `#` heading). If its
 last line is neither `RUN COMPLETE` nor `RUN STOPPED …`, a run may be

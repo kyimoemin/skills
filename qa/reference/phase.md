@@ -16,6 +16,14 @@ Grep the root `CLAUDE.md` and `AGENTS.md` for these. Each is one line:
   no runbook, verifiers work out how to run the app themselves.
 - `qa: regression <path>` is the repo's committed regression suite. With
   one, every QA batch ends with one regression run (see below).
+- `qa: max <n> parallel` lets up to `n` verifiers run at once, one per
+  lane. Default 1; above 2 counts as 2. A lane is one simulator or
+  emulator id, one account env-var prefix (`QA_TEST_`, `QA_TEST_2_`), one
+  Metro or dev-server port and one scratch folder (outside `.sprint/`,
+  which is archived). The runbook declares them under a `Lanes` heading,
+  one row per lane: grep for it and read only that section, not the whole
+  runbook. The lane count is the smaller of `n` and the lanes declared. At 1 or less there are no lanes, and
+  everything below runs exactly as written for one verifier at a time.
 
 ## Before the first dispatch
 
@@ -23,6 +31,9 @@ Grep the root `CLAUDE.md` and `AGENTS.md` for these. Each is one line:
   It must be clean and on the base branch; pull it with `--ff-only`. If
   it's dirty or on another branch, don't switch it or stash anything.
   Stop the batch and report it.
+  With lanes, every verifier tests the same commit: pull once, before the
+  first dispatch, then leave the checkout alone until the batch, regression
+  included, is done.
 - **Migrations:** a merged ticket whose migration isn't applied is checked
   against the wrong schema. `/sprint` applies migrations in its merge
   phase. Standalone, the runbook says how to check for unapplied ones, and
@@ -48,9 +59,9 @@ ticket was handled.
 
 ## Dispatch
 
-Run verifiers one at a time, synchronously, in the foreground. They drive
-the same simulator, ports and test account, so two at once fight. Send each
-`qa-verifier` only these:
+Without lanes, run verifiers one at a time, synchronously, in the
+foreground. They drive the same simulator, ports and test account, so two
+at once fight. Send each `qa-verifier` only these:
 
 - **ticket mode:** `ticket:` id, `criteria:` ticket file path (or verbatim
   text), `repo:` path, `pr:` merged PR number, `runbook:` path if there is one.
@@ -59,6 +70,18 @@ the same simulator, ports and test account, so two at once fight. Send each
 
 Each verifier cleans up whatever it started: Metro, a simulator it booted,
 any background process. So the next one starts from a clean machine.
+
+**With lanes**, run one verifier per lane at a time, each in the
+background; it's still one verifier per ticket. Each ticket dispatch adds
+`lane: <k>, device <id>, account <prefix>, port <port>, scratch <folder>`.
+A lane is busy from its dispatch until its verifier returns. Give the next
+ticket to the first free lane, and record each return as it arrives. Each
+verifier keeps to its lane and cleans up only what it started, so the next
+one on that lane starts clean. Native builds still run one at a time: the
+repo's build script or lock serializes them, and a verifier waits out
+another lane's build instead of starting a second. The regression run
+stays alone: dispatch it only once every lane is idle, with lane 1's
+`lane:` line, so it doesn't pick a device on its own.
 
 ## Recording returns
 

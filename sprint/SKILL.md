@@ -559,6 +559,9 @@ test the integrated base, not one PR. Read
 - the main checkout as the repo path;
 - the base branch.
 
+With a `qa: max <n> parallel` line and lanes in its runbook, phase.md runs
+up to that many verifiers at once, one per lane; otherwise one at a time.
+
 No implementer is running at this point, so the machine is free. One may
 have left the main checkout on its ticket branch, so if it's clean, put it
 on the base and pull with `--ff-only` before the first verifier. If it's
