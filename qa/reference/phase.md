@@ -83,7 +83,7 @@ another lane's build instead of starting a second. The regression run
 stays alone: dispatch it only once every lane is idle, with lane 1's
 `lane:` line, so it doesn't pick a device on its own.
 
-**Checks that must run alone.** A lane's verifier returns `solo: <reason>`
+**Checks that must run alone.** A lane's verifier returns `solo: <one-line reason>`
 when a criterion needs the machine to itself: it resets or onboards an
 account another lane may be using, or edits data every account shares.
 It returns before starting anything and writes no results file. Record it
@@ -100,7 +100,7 @@ run still comes last. Without lanes no verifier returns `solo:`.
 
 The verifier returns one line: `pass`, `pass with <n> unverifiable → <path>`,
 `<n> of <m> … failed → <path>`, or `blocked: <question>`. With lanes it
-may also be `solo: <reason>` (see Dispatch).
+may also be `solo: <one-line reason>` (see Dispatch).
 
 - **`blocked`:** write the question to the next free results file as a
   `blocked: <question>` entry, so it outlives the session. That's
