@@ -84,6 +84,8 @@ const STATE_BADGE: Record<string, string> = {
   "merge-skipped": "🟠 merge-skipped",
   blocked: "🟠 blocked",
   failed: "🟠 failed",
+  "qa-skipped": "⏭️ qa-skipped",
+  "qa-blocked": "🟠 qa-blocked",
   "qa-fail": "🔴 qa-fail",
   "in-progress": "🔵 in-progress",
   "qa-running": "🔵 qa-running",
@@ -175,19 +177,33 @@ function rawTailSection(state: DashState): string[] {
 
 /** A standalone /sprint run has no feature pipeline to draw, so the strip
  *  is the run's own funnel: planned → working → ready → merged, with parked
- *  tickets hanging off it. Counts come from the ticket rows, so the strip
- *  can never disagree with the table below it. */
+ *  tickets hanging off it, and when the run has a QA phase → QA running →
+ *  QA done, with failed or blocked checks hanging off. Counts come from the
+ *  ticket rows, so the strip can never disagree with the table below it.
+ *  `merged` is every merged ticket, whatever its QA state; the QA buckets
+ *  split it for the strip. */
 export function funnel(state: DashState) {
   const inState = (...names: string[]) =>
     state.tickets.filter((t) => names.some((n) => t.state === n || t.state.startsWith(n)));
   const working = inState("in-progress", "in-review");
   const ready = inState("ready-to-merge");
-  const merged = inState("merged", "qa-running", "qa-pass", "qa-fail");
+  const awaitingQa = inState("merged");
+  const qaRunning = inState("qa-running");
+  const qaDone = inState("qa-pass", "qa-skipped");
+  const qaStuck = inState("qa-fail", "qa-blocked");
+  const merged = [...awaitingQa, ...qaRunning, ...qaDone, ...qaStuck];
   // merge-skipped too: otherwise it falls through to pending and reads
   // as "not dispatched yet"
   const stuck = inState("parked", "blocked", "failed", "merge-skipped");
   const pending = state.tickets.length - working.length - ready.length - merged.length - stuck.length;
-  return { working, ready, merged, stuck, pending };
+  return { working, ready, merged, awaitingQa, qaRunning, qaDone, qaStuck, stuck, pending };
+}
+
+/** The failed/blocked QA node's label: only the outcomes that occurred. */
+function qaStuckLabel(qaStuck: DashState["tickets"]): string {
+  const failed = qaStuck.filter((t) => t.state === "qa-fail").length;
+  const blocked = qaStuck.length - failed;
+  return [failed && `QA failed ${failed}`, blocked && `QA blocked ${blocked}`].filter(Boolean).join(" · ");
 }
 
 function runHeading(state: DashState): string {
@@ -199,7 +215,7 @@ function runHeading(state: DashState): string {
 
 export function renderMarkdown(state: DashState): string {
   const lines: string[] = [];
-  const { working, ready, merged, stuck, pending } = funnel(state);
+  const { working, ready, merged, awaitingQa, qaRunning, qaDone, qaStuck, stuck, pending } = funnel(state);
   lines.push(`# Sprint progress — ${mdCell(runHeading(state))}`);
   lines.push("");
   lines.push(
@@ -223,24 +239,46 @@ export function renderMarkdown(state: DashState): string {
     lines.push("");
   }
 
+  // With a QA phase every stage is exclusive: merged is what's waiting on
+  // its check, and checked tickets move on to the QA nodes. Without one,
+  // the strip is exactly what it always was.
+  const qa = !!state.qaPhase;
+  const atMerged = qa ? awaitingQa.length : merged.length;
   const strip = [
     { id: "n0", label: `planned ${state.tickets.length}`, n: state.tickets.length, cls: "pending" },
     { id: "n1", label: `working ${working.length}`, n: working.length, cls: "active" },
     { id: "n2", label: `ready to merge ${ready.length}`, n: ready.length, cls: "waiting" },
-    { id: "n3", label: `merged ${merged.length}`, n: merged.length, cls: "merged" },
+    { id: "n3", label: `merged ${atMerged}`, n: atMerged, cls: "merged" },
   ];
+  if (qa) {
+    strip.push(
+      { id: "n5", label: `QA running ${qaRunning.length}`, n: qaRunning.length, cls: "active" },
+      { id: "n6", label: `QA done ${qaDone.length}`, n: qaDone.length, cls: "qadone" },
+    );
+  }
+  // the suite run is one state, not a ticket count, so it hangs off the
+  // strip as a label rather than joining it
+  const regressionCls = { running: "active", pass: "qadone", fail: "qafail", blocked: "waiting" } as const;
   lines.push("## Progress");
   lines.push("");
   lines.push("```mermaid");
   lines.push("flowchart LR");
   lines.push(`    ${strip.map((c) => `${c.id}["${mermaidLabel(c.label)}"]`).join(" --> ")}`);
   if (stuck.length) lines.push(`    n4["${mermaidLabel(`parked ${stuck.length}`)}"]`);
+  if (qa && qaStuck.length) lines.push(`    n5 -.-> n7["${mermaidLabel(qaStuckLabel(qaStuck))}"]`);
+  if (qa && state.regression) lines.push(`    n6 -.-> n8["${mermaidLabel(`regression ${state.regression}`)}"]`);
   for (const c of strip) lines.push(`    class ${c.id} ${c.n ? c.cls : "pending"}`);
   if (stuck.length) lines.push(`    class n4 waiting`);
+  if (qa && qaStuck.length) lines.push(`    class n7 qafail`);
+  if (qa && state.regression) lines.push(`    class n8 ${regressionCls[state.regression]}`);
   lines.push(`    classDef merged fill:#8855cc22,stroke:#8855cc`);
   lines.push(`    classDef active fill:#4477cc22,stroke:#4477cc,stroke-width:2px`);
   lines.push(`    classDef waiting fill:#fab21922,stroke:#fab219,stroke-width:2px`);
   lines.push(`    classDef pending fill:transparent,stroke:#8a8a84`);
+  if (qa) {
+    lines.push(`    classDef qadone fill:#33aa5522,stroke:#33aa55`);
+    lines.push(`    classDef qafail fill:#dd444422,stroke:#dd4444,stroke-width:2px`);
+  }
   lines.push("```");
   if (pending > 0) {
     lines.push("");

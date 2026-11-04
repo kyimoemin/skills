@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { buildSprintState, parseSprintLog } from "./parse";
+import { buildSprintState, parseSprintLog, type QaSignal } from "./parse";
 import { mkdtempSync, writeFileSync, mkdirSync, readdirSync, readFileSync, utimesSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -396,5 +396,77 @@ describe("QA phase in the running panel", () => {
   test("the regression run is named too", () => {
     const md = render("ORDER: CC-1 (auto)\nCC-1 merged, PR #1\nCC-1 qa pass, x\nQA: regression dispatched\n");
     expect(md).toContain("QA running: regression.");
+  });
+});
+
+describe("QA stages in the funnel", () => {
+  const stateOf = (log: string, qaSignals: QaSignal[] = []) =>
+    buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", roundFiles: [], qaSignals, now: NOW });
+  const progress = (md: string) => md.slice(md.indexOf("## Progress"), md.indexOf("## Tickets"));
+  // CC-1 skipped, CC-2 pass, CC-3 fail, CC-4 blocked, CC-5 running, CC-6 merged awaiting QA,
+  // CC-7 parked, CC-8 not dispatched
+  const LOG =
+    "ORDER: CC-1, CC-2, CC-3, CC-4, CC-5, CC-6, CC-7, CC-8 (auto)\n" +
+    ["CC-1", "CC-2", "CC-3", "CC-4", "CC-5", "CC-6"].map((t, i) => `${t} merged, PR #${i + 1}\n`).join("") +
+    "CC-7 parked, depends on CC-1\n" +
+    "CC-1 qa skipped, docs only, .sprint/qa-CC-1.md\n" +
+    "CC-2 qa pass, .sprint/qa-CC-2.md\n" +
+    "CC-3 qa fail, 1 of 3 criteria failed, .sprint/qa-CC-3.md\n" +
+    "CC-4 qa blocked, dirty checkout, .sprint/qa-CC-4.md\n" +
+    "CC-5 qa dispatched\n";
+
+  test("a run without QA lines draws the funnel it always did", () => {
+    const md = renderMarkdown(stateOf(SPRINT_STANDALONE));
+    expect(md).not.toContain("QA running");
+    expect(md).not.toContain("n5");
+    expect(md).not.toContain("qadone");
+    // a results file alone doesn't add QA stages either
+    const fileOnly = renderMarkdown(
+      stateOf("ORDER: A-1\nA-1 merged\n", [{ ticket: "A-1", path: ".sprint/qa-A-1.md", hint: "pass" }]),
+    );
+    expect(fileOnly).toContain('n3["merged 1"]');
+    expect(fileOnly).not.toContain("QA done");
+  });
+
+  test("merged, QA running and QA done are exclusive stages; fail and blocked hang off", () => {
+    const md = progress(renderMarkdown(stateOf(LOG)));
+    expect(md).toContain(
+      'n0["planned 8"] --> n1["working 0"] --> n2["ready to merge 0"] --> n3["merged 1"] --> n5["QA running 1"] --> n6["QA done 2"]',
+    );
+    expect(md).toContain('n4["parked 1"]');
+    expect(md).toContain('n5 -.-> n7["QA failed 1 · QA blocked 1"]');
+    expect(md).toContain("class n6 qadone");
+    expect(md).toContain("class n7 qafail");
+    expect(md).not.toContain("n8"); // no regression line yet
+  });
+
+  test("the not-dispatched count still adds up with QA states", () => {
+    expect(renderMarkdown(stateOf(LOG))).toContain("_1 not dispatched yet._");
+  });
+
+  test("only the QA outcomes that happened are named", () => {
+    const md = progress(renderMarkdown(stateOf("ORDER: CC-1 (auto)\nCC-1 merged\nCC-1 qa fail, x\n")));
+    expect(md).toContain('n7["QA failed 1"]');
+    expect(progress(renderMarkdown(stateOf("ORDER: CC-1 (auto)\nCC-1 merged\nCC-1 qa pass\n")))).not.toContain("n7");
+  });
+
+  test("the regression run hangs off QA done with its state", () => {
+    const running = progress(renderMarkdown(stateOf(LOG + "QA: regression dispatched\n")));
+    expect(running).toContain('n6 -.-> n8["regression running"]');
+    expect(running).toContain("class n8 active");
+    const failed = progress(renderMarkdown(stateOf(LOG + "QA: regression dispatched\nQA: regression fail, .sprint/qa-regression.md\n")));
+    expect(failed).toContain('n8["regression fail"]');
+    expect(failed).toContain("class n8 qafail");
+  });
+
+  test("a skipped ticket reads skipped in the table, not ran", () => {
+    const md = renderMarkdown(stateOf(LOG, [{ ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "skipped" }]));
+    expect(md).toContain("| `CC-1` | ⏭️ qa-skipped | — | — | [skipped](qa-CC-1.md) |");
+    expect(md).toContain("| `CC-4` | 🟠 qa-blocked | — | — | blocked |");
+  });
+
+  test("the project page's Merged column still counts every merged ticket", () => {
+    const md = renderProjectMarkdown("p", [{ name: "app", dir: "app", state: stateOf(LOG) }], NOW.toISOString());
+    expect(md).toContain(`| [app](app/.sprint/${CURRENT_NAME}) | s | ⏸ waiting on you | 8 | 0 | 0 | 6 | 1 |`);
   });
 });

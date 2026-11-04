@@ -5,6 +5,7 @@ import {
   qaFilesByTicket,
   qaHint,
   roundsFromFiles,
+  type QaSignal,
 } from "./parse";
 
 // Fixture: the example lines from sprint/SKILL.md, verbatim, plus a
@@ -111,6 +112,12 @@ describe("qaHint", () => {
   });
   test("indeterminate content stays ran", () => {
     expect(qaHint("run interrupted")).toBe("ran");
+  });
+  test("a one-line skipped or blocked entry wins over words in its reason", () => {
+    expect(qaHint("skipped: regression-flow change only; the batch regression pass exercises it\n")).toBe("skipped");
+    expect(qaHint("blocked: main checkout dirty, FAIL to start\n")).toBe("blocked");
+    // only the entry's own prefix counts, not the word in prose
+    expect(qaHint("criterion 1: pass\nnote: one step skipped: n/a")).toBe("pass");
   });
 });
 
@@ -486,9 +493,10 @@ describe("sprint view — QA phase in flight", () => {
     expect(s.qaRunning).toEqual(["CC-1"]);
   });
 
-  test("a qa result line ends the running state", () => {
+  test("a qa result line ends the running state and sets the verdict", () => {
     const s = build(merged + "CC-1 qa dispatched\nCC-1 qa pass, .sprint/qa-CC-1.md\n");
-    expect(s.tickets[0].state).toBe("merged");
+    expect(s.tickets[0].state).toBe("qa-pass");
+    expect(s.tickets[0].qa).toBe("pass");
     expect(s.qaRunning).toBeUndefined();
   });
 
@@ -510,5 +518,67 @@ describe("sprint view — QA phase in flight", () => {
 
   test("nothing reads as running once the run is complete", () => {
     expect(build(merged + "CC-1 qa dispatched\nRUN COMPLETE\n").qaRunning).toBeUndefined();
+  });
+});
+
+describe("sprint view — QA verdicts", () => {
+  const build = (log: string, qaSignals: QaSignal[] = []) =>
+    buildSprintState({
+      sprint: parseSprintLog(log),
+      sprintId: "sprint-22",
+      roundFiles: [],
+      qaSignals,
+      now: new Date("2026-11-04T12:00:00Z"),
+    });
+  const merged = "ORDER: CC-1, CC-2, CC-3 (auto)\nCC-1 merged, PR #1\nCC-2 merged, PR #2\nCC-3 merged, PR #3\n";
+
+  test("a qa skipped line is qa-skipped, not plain merged, and its QA reads skipped", () => {
+    const s = build(merged + "CC-1 qa skipped, docs only, .sprint/qa-CC-1.md\n", [
+      { ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "skipped" },
+    ]);
+    expect(s.tickets[0]).toMatchObject({ state: "qa-skipped", qa: "skipped", qaFile: ".sprint/qa-CC-1.md" });
+    expect(s.tickets[1].state).toBe("merged");
+  });
+
+  test("a skipped results file alone is enough, for logs without result lines", () => {
+    const s = build(merged, [{ ticket: "CC-2", path: ".sprint/qa-CC-2.md", hint: "skipped" }]);
+    expect(s.tickets[1]).toMatchObject({ state: "qa-skipped", qa: "skipped" });
+  });
+
+  test("a blocked check is qa-blocked and waits on nothing", () => {
+    const s = build(merged + "CC-1 qa blocked, main checkout dirty, .sprint/qa-CC-1.md\n");
+    expect(s.tickets[0]).toMatchObject({ state: "qa-blocked", qa: "blocked" });
+    expect(s.awaiting).toEqual([]);
+  });
+
+  test("the log's verdict outranks the results file's hint", () => {
+    const s = build(merged + "CC-1 qa fail, 1 of 4 criteria failed, .sprint/qa-CC-1.md\n", [
+      { ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "ran" },
+    ]);
+    expect(s.tickets[0]).toMatchObject({ state: "qa-fail", qa: "fail" });
+  });
+
+  test("a rerun clears the old verdict until its own result line", () => {
+    const rerun = merged + "CC-1 qa fail, x\nCC-1 qa dispatched\n";
+    expect(build(rerun).tickets[0].state).toBe("qa-running");
+    expect(build(rerun + "CC-1 qa pass, .sprint/qa-CC-1-2.md\n").tickets[0].state).toBe("qa-pass");
+  });
+
+  test("qaPhase is set by any QA line and absent otherwise", () => {
+    expect(parseSprintLog(SPRINT_STANDALONE).qaPhase).toBe(false);
+    expect(build(merged).qaPhase).toBeUndefined();
+    expect(parseSprintLog(merged + "CC-1 qa dispatched\n").qaPhase).toBe(true);
+    expect(parseSprintLog(merged + "QA: regression dispatched\n").qaPhase).toBe(true);
+  });
+
+  test("the regression run's state follows its newest line", () => {
+    expect(build(merged).regression).toBeUndefined();
+    expect(build(merged + "QA: regression dispatched\n").regression).toBe("running");
+    const passed = merged + "QA: regression dispatched\nQA: regression pass, .sprint/qa-regression-3.md\n";
+    expect(parseSprintLog(passed).regressionResult).toBe("pass");
+    expect(build(passed).regression).toBe("pass");
+    expect(build(passed + "QA: regression dispatched\n").regression).toBe("running");
+    expect(build(merged + "QA: regression blocked, .sprint/qa-regression.md\n").regression).toBe("blocked");
+    expect(build(merged + "QA: regression dispatched\nRUN COMPLETE\n").regression).toBeUndefined();
   });
 });

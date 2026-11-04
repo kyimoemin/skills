@@ -20,6 +20,7 @@ export interface TicketEvents {
   readyToMerge: boolean;
   mergeSkipped?: string; // /sprint auto: the merge phase skipped it, with why
   qaRunning?: boolean; // `<ticket> qa dispatched` with no qa result line after it yet
+  qaResult?: "pass" | "fail" | "blocked" | "skipped"; // the newest `<ticket> qa <verdict>` line
   answers: string[];
 }
 
@@ -36,6 +37,8 @@ export interface SprintParse {
   proposed: string[]; // FILED: … proposed — follow-ups awaiting my triage
   waves: string[][]; // WAVE: lines, in dispatch order
   regressionRunning: boolean; // `QA: regression dispatched` with no result line after it yet
+  regressionResult?: "pass" | "fail" | "blocked"; // the newest `QA: regression <verdict>` line
+  qaPhase: boolean; // the log has any QA line (ticket or regression): the run has a QA phase
   rawTail: string[];
 }
 
@@ -51,7 +54,7 @@ export interface PrInfo {
 export interface QaSignal {
   ticket: string;
   path: string;
-  hint: "pass" | "fail" | "ran";
+  hint: "pass" | "fail" | "blocked" | "skipped" | "ran";
 }
 
 export interface TicketState {
@@ -81,6 +84,8 @@ export interface DashState {
   sprintRun?: number; // the -N suffix, 1 when unsuffixed
   proposed?: string[]; // follow-ups filed for my triage
   qaRunning?: string[]; // ticket ids (and "regression") whose QA check is running now
+  qaPhase?: boolean; // the log has QA lines, so the funnel draws its QA stages
+  regression?: "running" | "pass" | "fail" | "blocked"; // the suite run's state, when logged
   repoUrl?: string; // https base of the GitHub origin, for PR links
   generatedAt: string;
 }
@@ -131,6 +136,7 @@ export function parseSprintLog(text: string): SprintParse {
     proposed: [],
     waves: [],
     regressionRunning: false,
+    qaPhase: false,
     rawTail: lines.filter(Boolean).slice(-15),
   };
   // A stop line only names what it waits on; the reason is the NOTE: the
@@ -231,7 +237,11 @@ export function parseSprintLog(text: string): SprintParse {
       // the QA phase's suite run: dispatched before the verifier starts,
       // a result line when it returns
       resume();
-      out.regressionRunning = m[1].toLowerCase() === "dispatched";
+      out.qaPhase = true;
+      const verdict = m[1].toLowerCase();
+      out.regressionRunning = verdict === "dispatched";
+      out.regressionResult =
+        verdict === "dispatched" ? undefined : (verdict as SprintParse["regressionResult"]);
       continue;
     }
     if ((m = line.match(/^DECISION:\s*(.+)$/))) {
@@ -259,7 +269,11 @@ export function parseSprintLog(text: string): SprintParse {
     // before the dispatch rule below, which would read "qa" as a qualifier
     // and put a merged ticket back to work.
     if ((m = rest.match(/^qa\s+(dispatched|pass|fail|blocked|skipped)\b/i))) {
-      t.qaRunning = m[1].toLowerCase() === "dispatched";
+      out.qaPhase = true;
+      const verdict = m[1].toLowerCase();
+      t.qaRunning = verdict === "dispatched";
+      // a rerun clears the old verdict; its own result line sets the new one
+      t.qaResult = verdict === "dispatched" ? undefined : (verdict as TicketEvents["qaResult"]);
       continue;
     }
 
@@ -364,11 +378,16 @@ export function qaFilesByTicket(
   );
 }
 
-/** Verdict hint from a qa results file. The qa-verifier spec writes
- *  per-criterion verdicts as `pass` / `FAIL` / `unverifiable` — FAIL in
- *  caps — so the case-sensitive match avoids tripping on prose like
- *  "no failures found". Anything indeterminate stays "ran". */
+/** Verdict hint from a qa results file. A ticket the QA phase skipped or
+ *  couldn't check gets a one-line `skipped: <reason>` / `blocked: <reason>`
+ *  entry, checked first: a reason like "covered by the regression pass"
+ *  must not read as a pass. The qa-verifier spec writes per-criterion
+ *  verdicts as `pass` / `FAIL` / `unverifiable` — FAIL in caps — so the
+ *  case-sensitive match avoids tripping on prose like "no failures found".
+ *  Anything indeterminate stays "ran". */
 export function qaHint(text: string): QaSignal["hint"] {
+  if (/^\s*skipped:/i.test(text)) return "skipped";
+  if (/^\s*blocked:/i.test(text)) return "blocked";
   if (/\bFAIL(?:ED)?\b/.test(text)) return "fail";
   if (/\bunverifiable\b/i.test(text)) return "ran";
   if (/\bpass(?:ed)?\b/i.test(text)) return "pass";
@@ -403,15 +422,26 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
     }
 
     const merged = ev?.mergedInLog || t.pr?.state === "MERGED";
+    // The log's result line is the dispatcher's record of the newest check,
+    // so it outranks a results file's hint; the file fills in for logs that
+    // never wrote one.
+    const verdict = ev?.qaRunning ? undefined : (ev?.qaResult ?? t.qa);
+    if (verdict && verdict !== t.qa) t.qa = verdict;
 
     if (merged && ev?.qaRunning) {
       // a rerun outranks an older results file still on disk
       t.state = "qa-running";
       t.detail = "QA check running";
-    } else if (merged && t.qa === "fail") {
+    } else if (merged && verdict === "fail") {
       t.state = "qa-fail";
       t.detail = "merged, QA failed — bugs filed per fold/backlog choice";
-    } else if (merged && t.qa === "pass") {
+    } else if (merged && verdict === "blocked") {
+      // a blocked check stops nothing (the ticket is merged either way);
+      // it waits for a human in the run's final report, not here
+      t.state = "qa-blocked";
+    } else if (merged && verdict === "skipped") {
+      t.state = "qa-skipped";
+    } else if (merged && verdict === "pass") {
       t.state = "qa-pass";
     } else if (merged) {
       t.state = "merged";
@@ -527,6 +557,9 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
     sprintRun: inp.sprintRun,
     proposed: sp.proposed.length ? sp.proposed : undefined,
     qaRunning: qaRunningNow(sp, tickets),
+    qaPhase: sp.qaPhase || undefined,
+    // like qaRunning: an interrupted suite run doesn't read as running once the run is complete
+    regression: sp.regressionRunning ? (sp.run === "complete" ? undefined : "running") : sp.regressionResult,
     generatedAt: inp.now.toISOString(),
   };
 }

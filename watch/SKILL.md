@@ -61,7 +61,10 @@ verdicts. It writes `.sprint/progress-<sprint-id>.md` (re-runs
 `<id>-2.md`, `-3.md` share the one file) plus an identical copy at the
 fixed path `.sprint/progress-current.md`, and touches nothing else: no network, no dependencies (it reads the `origin` remote locally
 to link PR numbers to GitHub). It draws the run's
-planned → working → ready → merged funnel plus its waves, and shows the
+planned → working → ready → merged funnel plus its waves; once the log has
+QA lines the funnel continues → QA running → QA done (passed or skipped),
+with failed or blocked checks and the regression run's state hanging off
+it. It shows the
 `NOTE:` written just before `RUN STOPPED` as why it stopped. The
 ticket table links each PR, the newest review round file and the QA file,
 and only the newest five decisions stay unfolded. Tests live
