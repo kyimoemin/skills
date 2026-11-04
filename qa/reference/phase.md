@@ -83,16 +83,33 @@ another lane's build instead of starting a second. The regression run
 stays alone: dispatch it only once every lane is idle, with lane 1's
 `lane:` line, so it doesn't pick a device on its own.
 
+**Checks that must run alone.** A lane's verifier returns `solo: <reason>`
+when a criterion needs the machine to itself: it resets or onboards an
+account another lane may be using, or edits data every account shares.
+It returns before starting anything and writes no results file. Record it
+as `<ticket> qa solo-wait: <reason>`, not as blocked or failed. Then stop
+handing out tickets. Let the busy lanes finish their current tickets and
+record their returns; another `solo:` joins the wait. Once every lane is
+idle, rerun each waiting ticket alone, one at a time, with lane 1's
+`lane:` line plus `alone: other lanes idle`, so the verifier runs every
+criterion and doesn't return `solo:` again. Its results go to the next
+free results file as usual. Then resume lane dispatch; the regression
+run still comes last. Without lanes no verifier returns `solo:`.
+
 ## Recording returns
 
 The verifier returns one line: `pass`, `pass with <n> unverifiable → <path>`,
-`<n> of <m> … failed → <path>`, or `blocked: <question>`.
+`<n> of <m> … failed → <path>`, or `blocked: <question>`. With lanes it
+may also be `solo: <reason>` (see Dispatch).
 
 - **`blocked`:** write the question to the next free results file as a
   `blocked: <question>` entry, so it outlives the session. That's
   `.sprint/qa-<ticket>.md` (`qa-regression.md` for the suite), or the next
   `-<N>` suffix if earlier runs exist. A blocked file is a non-pass.
   /deploy's gate fails closed on it, and `recent` keeps the ticket in scope.
+- **`solo`:** nothing ran, so write no results file; the alone rerun
+  writes it. Until then the ticket has none, so `recent` keeps it in
+  scope.
 - **`→ inline`:** the verifier couldn't write its file. Write its entries
   yourself to the next free results file, word for word.
 - **Never overwrite** an earlier results file. The suffixed files are the

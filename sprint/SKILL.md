@@ -587,6 +587,10 @@ QA: regression pass|fail|blocked, <results path>
 
 A skipped ticket gets only its result line; no verifier runs.
 
+With lanes, a verifier may return `solo:` (a check that must run alone,
+see phase.md). Log `<ticket> qa solo-wait: <reason>`. It is not a result
+line: the alone rerun logs its own `qa dispatched` and result.
+
 `<detail>` is the verifier's count (`2 unverifiable`, `1 of 4 criteria
 failed`) or the blocked question; leave it out for a clean pass.
 
@@ -598,7 +602,9 @@ failed`) or the blocked question; leave it out for a clean pass.
   "QA needs you", with the question or the criterion that needs a human.
 - **Replay:** in an opted-in repo, a ticket logged `merged` with no `qa`
   result line still needs its check, and a bare `qa dispatched` was
-  interrupted. Run it before that ticket's close-tracking dispatch. If the
+  interrupted. A `qa solo-wait` with no later `qa dispatched` still owes
+  its alone rerun; run it once no other check is running. Run each of
+  these before that ticket's close-tracking dispatch. If the
   repo has a suite and no `QA: regression` result follows the batch's last
   ticket check, run the suite after those checks.
 
