@@ -415,8 +415,8 @@ describe("QA stages in the funnel", () => {
     "CC-4 qa blocked, dirty checkout, .sprint/qa-CC-4.md\n" +
     "CC-5 qa dispatched\n";
 
-  test("the funnel runs top to bottom", () => {
-    expect(progress(renderMarkdown(stateOf(LOG)))).toContain("flowchart TD");
+  test("the funnel runs left to right", () => {
+    expect(progress(renderMarkdown(stateOf(LOG)))).toContain("flowchart LR");
   });
 
   test("a run without QA lines draws the funnel it always did", () => {

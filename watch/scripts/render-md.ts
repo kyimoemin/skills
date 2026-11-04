@@ -262,7 +262,7 @@ export function renderMarkdown(state: DashState): string {
   lines.push("## Progress");
   lines.push("");
   lines.push("```mermaid");
-  lines.push("flowchart TD");
+  lines.push("flowchart LR");
   lines.push(`    ${strip.map((c) => `${c.id}["${mermaidLabel(c.label)}"]`).join(" --> ")}`);
   if (stuck.length) lines.push(`    n4["${mermaidLabel(`parked ${stuck.length}`)}"]`);
   if (qa && qaStuck.length) lines.push(`    n5 -.-> n7["${mermaidLabel(qaStuckLabel(qaStuck))}"]`);
