@@ -402,6 +402,8 @@ interface DeriveInputs {
   rounds: Record<string, number>;
   qaByTicket: Map<string, QaSignal>;
   prs?: Record<number, PrInfo>;
+  /** RUN COMPLETE: no check can still be running, whatever the log's qa lines say */
+  runComplete?: boolean;
 }
 
 function deriveTickets(inp: DeriveInputs): TicketState[] {
@@ -422,13 +424,16 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
     }
 
     const merged = ev?.mergedInLog || t.pr?.state === "MERGED";
+    // A dispatched check whose result line is missing or misworded can't
+    // still be running once the run is complete; fall back to its results file.
+    const qaRunning = ev?.qaRunning && !inp.runComplete;
     // The log's result line is the dispatcher's record of the newest check,
     // so it outranks a results file's hint; the file fills in for logs that
     // never wrote one.
-    const verdict = ev?.qaRunning ? undefined : (ev?.qaResult ?? t.qa);
+    const verdict = qaRunning ? undefined : (ev?.qaResult ?? t.qa);
     if (verdict && verdict !== t.qa) t.qa = verdict;
 
-    if (merged && ev?.qaRunning) {
+    if (merged && qaRunning) {
       // a rerun outranks an older results file still on disk
       t.state = "qa-running";
       t.detail = "QA check running";
@@ -522,6 +527,7 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
     rounds: roundsFromFiles(inp.roundFiles),
     qaByTicket: new Map(inp.qaSignals.map((q) => [q.ticket, q])),
     prs: inp.prs,
+    runComplete: sp.run === "complete",
   });
 
   const awaiting: string[] = [];

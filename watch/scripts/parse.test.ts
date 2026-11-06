@@ -519,6 +519,21 @@ describe("sprint view — QA phase in flight", () => {
   test("nothing reads as running once the run is complete", () => {
     expect(build(merged + "CC-1 qa dispatched\nRUN COMPLETE\n").qaRunning).toBeUndefined();
   });
+
+  test("a complete run takes an unmatched check's verdict from its results file", () => {
+    const s = buildSprintState({
+      sprint: parseSprintLog(merged + "CC-1 qa dispatched\nCC-1 qa returned pass\nRUN COMPLETE\n"),
+      sprintId: "sprint-12",
+      roundFiles: [],
+      qaSignals: [{ ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "pass" }],
+      now: new Date("2026-10-30T12:00:00Z"),
+    });
+    expect(s.tickets[0]).toMatchObject({ state: "qa-pass", qa: "pass" });
+  });
+
+  test("a complete run with no results file leaves the ticket merged, not running", () => {
+    expect(build(merged + "CC-1 qa dispatched\nRUN COMPLETE\n").tickets[0].state).toBe("merged");
+  });
 });
 
 describe("sprint view — QA verdicts", () => {
