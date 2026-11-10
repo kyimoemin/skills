@@ -1,7 +1,7 @@
 # Dev-workflow suite
 
-Seven Claude Code skills (this repo) plus three subagents
-([kyimoemin/agents](https://github.com/kyimoemin/agents)) that together run
+The Claude Code skills in this repo plus three subagents
+([kyimoemin/agents](https://github.com/kyimoemin/agents)) together run
 the delivery half of a software lifecycle: tickets → sprint → QA → release.
 Every skill discovers the project's tracker and conventions at runtime, so
 there are no per-repo variants. Two rules hold everywhere: **nothing
@@ -32,7 +32,7 @@ flowchart TB
     end
 
     subgraph ship ["Verify & ship"]
-        qa["/qa\ndispatcher, serial"]
+        qa["/qa\ndispatcher, parallel lanes\nif the repo declares them"]
         qav[["qa-verifier\nruns the app, exercises criteria"]]
         deploy["/deploy\ngated release"]
     end
@@ -41,7 +41,7 @@ flowchart TB
     watch["/watch\nlive progress file"]
 
     tracker[("tracker / backlog\ncards: implementer is sole writer")]
-    dotsprint[(".sprint/  (synced via refs/sprint/archive)\nrun log · findings · QA results")]
+    dotsprint[(".sprint/  (synced via refs/sprint/archive)\nrun log · QA results")]
 
     idea([bug, idea, or task]) --> addticket
     addticket -- "ticket" --> tracker
@@ -49,9 +49,9 @@ flowchart TB
     plansprint -- "next iteration" --> sprint
     tracker -- "no iterations: /sprint <ids>" --> sprint
     sprint -- "1 ticket each" --> impl
-    impl <-- "findings ↔ fixes" --> reviewer
-    reviewer -- "findings files" --> dotsprint
+    impl <-- "findings ↔ fixes\n(each round a PR comment)" --> reviewer
     sprint -- "run log" --> dotsprint
+    sprint -- "QA phase after its merges\n(repo opts in)" --> qav
     impl -- "PR ready" --> merge{{"human: merge?"}}
     merge -- "merged" --> qa
     qa -- "1 merged ticket each" --> qav
@@ -72,14 +72,15 @@ nodes are subagents — everything else is a skill you invoke.
 |---|---|---|
 | Plan | `/add-ticket` | One-off capture of a bug, idea, or task — discovers the tracker's conventions, checks for duplicates, files on go-ahead |
 | Plan | `/plan-sprint` | Close the finished iteration, open the next from ready backlog tickets (default board is sprint-based — tickets must land in a sprint before dispatch) |
-| Build | `/sprint` | Dispatch one `ticket-implementer` per ticket in dependency waves — independent tickets run parallel in isolated worktrees, `serial` flag forces one-at-a-time; park blockers; merge only what you name — or `auto`: loop pick-up → implement → merge → file follow-ups (bugs ready, improvements proposed for your triage) until nothing is ready, stopping only for your decisions |
+| Build | `/sprint` | Dispatch one `ticket-implementer` per ticket in dependency waves — independent tickets run parallel in isolated worktrees, `serial` flag forces one-at-a-time; park blockers; merge only what you name — or `auto`: loop pick-up → implement → merge → file follow-ups (bugs ready, improvements proposed for your triage) until nothing is ready, stopping only for your decisions. `<n>i` / `<n>q` cap implementers and QA verifiers for one run. In a repo that opts in, it runs the QA phase itself after its merges |
 | Build | `ticket-implementer` | One ticket end to end: branch, code + tests, PR, own review loop, finalize; never merges |
-| Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria/test coverage; one parseable return line |
-| Ship | `/qa` | One `qa-verifier` per merged ticket; failures become bug tickets on go-ahead |
+| Build | `ticket-reviewer` | Read-only diff review vs bugs/security/criteria/test coverage; one PR comment per round, verdict returned inline |
+| Ship | `/qa` | One `qa-verifier` per merged ticket, then the repo's regression suite if it has one; failures become bug tickets on go-ahead. `/sprint`'s QA phase is this same logic (`qa/reference/phase.md`) |
 | Ship | `qa-verifier` | Proves shipped behavior in the running app; code reading doesn't count |
 | Ship | `/deploy` | Discover the release mechanism; CI + QA gates; ship on explicit go-ahead; verify live |
 | Anytime | `/standup` | Read-only: where things stand, grouped by who can act, ends with a `/sprint` line |
 | Anytime | `/watch` | Writes `.sprint/progress-<sprint-id>.md` for the live run, mirrored to the fixed `.sprint/progress-current.md` — funnel, waiting-on-you list, ticket table, derived read-only from the run's own log; `--watch` keeps it live |
+| Anytime | `ui-verify` | Proves a UI renders and behaves as claimed on a simulator, emulator or browser, with measured evidence; implementers pick it up when criteria ask for on-device proof |
 
 ## The handshakes that hold it together
 
@@ -88,8 +89,9 @@ nodes are subagents — everything else is a skill you invoke.
   comment. Cards carry a trail line per event so a dead session stays
   diagnosable.
 - **`.sprint/`** (kept out of git via `.git/info/exclude`, never
-  `.gitignore`) is the audit trail: append-only run logs, per-round
-  findings files, QA results. `/deploy` reads it as the QA gate. It's kept
+  `.gitignore`) is the audit trail: append-only run logs, QA results and
+  the flows that produced them. Review rounds aren't here; they are
+  comments on each PR. `/deploy` reads it as the QA gate. It's kept
   off every branch, but not machine-bound: `/sprint` and `/qa` snapshot it
   to the `refs/sprint/archive` ref and push, and readers restore a missing
   `.sprint/` from that ref — so QA gates work on machines the sprint didn't
@@ -97,6 +99,13 @@ nodes are subagents — everything else is a skill you invoke.
 - **`docs/design/ui/design-language.md`**, where a project has one, is a
   repo convention binding every implementer's user-facing work — like the
   tests-follow-the-repo's-lead rule, whether or not a ticket links it.
+- **One-line switches in a repo's `CLAUDE.md` / `AGENTS.md`** turn
+  features on per repo: `sprint: max <n> parallel`, `sprint: qa after
+  merge`, `qa: runbook <path>`, `qa: regression <path>`, `qa: max <n>
+  parallel`. The runbook says how to build, launch and sign in, and
+  declares the lanes parallel verifiers use. A repo with none of these
+  still works: QA then runs only when you call `/qa`, one verifier at a
+  time, each working out how to run the app on its own.
 - **Dependency links on tickets** (labels, "depends on #N", tracker links)
   are read by standup, plan-sprint, and sprint's ordering.
 - **Humans stay in the loop at exactly three points once tickets exist:**
