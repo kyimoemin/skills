@@ -1,13 +1,13 @@
 # Sprint: project runs
 
 Read from `~/.claude/skills/sprint/SKILL.md` when a run starts from a project
-folder. Everything in SKILL.md still applies, per repo, with these changes.
+folder.
 
 A project run is started from a folder that holds several repos. That
 folder isn't itself a repo, and its `CLAUDE.md` maps ticket prefixes to
 repos in a `## Repos` table. It lets one session plan across repos whose
-tickets depend on each other. The rest of this file applies with these
-changes:
+tickets depend on each other. Everything in SKILL.md still applies, per
+repo, with these changes:
 
 - **Routing.** A ticket's prefix names its repo (`AD-11` → the `AD` row's
   path). Each repo keeps its own tracker; find it there as usual. `all`,

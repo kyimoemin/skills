@@ -22,8 +22,11 @@ Grep the root `CLAUDE.md` and `AGENTS.md` for these. Each is one line:
   Metro or dev-server port and one scratch folder (outside `.sprint/`,
   which is archived). The runbook declares them under a `Lanes` heading,
   one row per lane: grep for it and read only that section, not the whole
-  runbook. The lane count is the smaller of `n` and the lanes declared. At 1 or less there are no lanes, and
-  everything below runs exactly as written for one verifier at a time.
+  runbook. A caller may hand you its own `n` for this run (`/sprint`'s
+  `<n>q` argument). That is `n`, whether or not the repo has the line, and
+  the limits here still hold. The lane count is the smaller of `n` and the lanes declared.
+  At 1 or less there are no lanes, and everything below runs exactly as
+  written for one verifier at a time.
 
 ## Before the first dispatch
 

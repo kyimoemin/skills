@@ -80,7 +80,8 @@ clean-tree check and the /deploy gate).
 
 Check the write permission too: every verifier writes its results under
 `.sprint/`, so if `Edit(//**/.sprint/**)` is not in `permissions.allow` in
-`~/.claude/settings.json`, each dispatch stalls on a prompt. Say so in one
+`~/.claude/settings.json` or `~/.claude/settings.local.json`, each dispatch
+stalls on a prompt. Say so in one
 line and let me decide whether to add it — don't add it yourself.
 
 Then dispatch, record, and sync as phase.md says. Continue past a blocked

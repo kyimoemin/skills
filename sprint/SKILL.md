@@ -1,6 +1,6 @@
 ---
 description: Work through sprint tickets autonomously via ticket-implementer subagents — each implements, runs its own independent review loop, and finalizes; stop before merge. Merge only the tickets I explicitly approve at the end — or, with `auto`, loop pick-up → implement → merge → file follow-ups until nothing is ready, stopping only for my decisions.
-argument-hint: "[auto] [unattended] [serial] [TICKET-IDs space separated | all]"
+argument-hint: "[auto] [unattended] [serial] [<n>i] [<n>q] [TICKET-IDs space separated | all]"
 disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *), Bash(bun run *), Bash(claude agents --json), Bash(echo $PPID)
 ---
@@ -220,8 +220,8 @@ If no tickets were given: list the ready-to-start tickets from wherever this
 project tracks work (unblocked, dependencies done, in priority order) and
 stop for my confirmation. An unattended invocation (cron, scheduled) must
 pass the `unattended` keyword (`/sprint unattended ABC-1 ABC-2`) and
-explicit ticket ids — `unattended`, `serial` and `auto` are keywords, never
-ticket ids. If a run
+explicit ticket ids — `unattended`, `serial`, `auto` and the caps `<n>i` /
+`<n>q` are keywords, never ticket ids. If a run
 marked `unattended` passes `all` or nothing, stop and report instead of
 planning work; a stale board could trigger a lot of unwanted work.
 
@@ -239,6 +239,17 @@ If the word `auto` appears: see **Auto loop** below. With no ticket ids,
 `auto` means `all` — never the list-and-confirm path above. It also changes
 how a run resumes, how the ready set is read, the merge gate, and what
 happens after it.
+
+**Per-run caps.** `<n>i` sets how many implementers run at once, and `<n>q`
+(or `<n>qa`) how many QA verifiers: `/sprint auto 3i 2q`. Each replaces the
+repo's own line for this run (`sprint: max <n> parallel`, `qa: max <n>
+parallel`), up or down, because my word for this run is newer than the
+repo's default. Neither lifts a hard limit: 3 implementers, and for QA the
+lanes the runbook declares, 2 at most. Treat `1i` as `serial`. Record them
+by appending `CAPS: <n>i <n>q` right after the run's first `ORDER:` line
+(in a project run, after `PROJECT:` in each repo's log). A resume honors that line unless the new
+invocation gives its own caps; then append a new `CAPS:` line, and the last
+one wins.
 
 ## Progress file
 
@@ -345,7 +356,8 @@ the cap. A repo can lower the cap with a `sprint: max <n> parallel` line
 in its `CLAUDE.md` or `AGENTS.md` (each implementer runs the test suite
 and spawns a reviewer, which a small machine feels); grep for it when
 planning, and treat `max 1 parallel` as `serial`. It never raises the cap
-above 3. When a wave dispatches, append `WAVE: <ids>` to the run log, then the
+above 3. A `<n>i` argument replaces the repo's line for this run (see
+**Per-run caps**). When a wave dispatches, append `WAVE: <ids>` to the run log, then the
 individual `dispatched` lines. Dispatch the whole wave in ONE message
 (parallel tool calls), each dispatch with worktree isolation
 (`isolation: "worktree"`) so no two implementers share a working tree; a
@@ -561,6 +573,8 @@ test the integrated base, not one PR. Read
 
 With a `qa: max <n> parallel` line and lanes in its runbook, phase.md runs
 up to that many verifiers at once, one per lane; otherwise one at a time.
+A `<n>q` argument replaces that line's number for this run: hand it to
+phase.md as the cap.
 
 No implementer is running at this point, so the machine is free. One may
 have left the main checkout on its ticket branch, so if it's clean, put it
@@ -683,13 +697,6 @@ closes + files follow-ups and QA bugs"]]
   A project run's loop counts as the loop for every repo it maps.
 - `auto` is for a session I started. It does not lift the `unattended`
   rule, and it never deploys.
-
-## Project runs
-
-A run started from a project folder (see the top of this file) follows
-`~/.claude/skills/sprint/reference/project-runs.md` — read it before
-planning: it changes routing, logs, waves, dispatch, close-tracking, the
-watcher, ending and resume. A single-repo run never needs it.
 
 ## Wrap-up: branch and worktree sweep
 
