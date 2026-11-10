@@ -1,6 +1,5 @@
 ---
-description: Close the active iteration (sprint/milestone/cycle) and open the next — verify its tickets are done, archive it, and create the next one from the backlog against the current plan.
-disable-model-invocation: true
+description: Close the active iteration (sprint/milestone/cycle) and open the next — verify its tickets are done, archive it, and create the next one from the backlog against the current plan. Use only when I ask to plan, roll or open the next sprint, or name /plan-sprint.
 allowed-tools: Bash(git *), Bash(gh *)
 ---
 

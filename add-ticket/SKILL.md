@@ -1,7 +1,6 @@
 ---
-description: Capture a bug, idea, or task as a ticket — discover the project's tracker and ticket conventions, check for duplicates, draft the ticket to match, then file it on go-ahead.
+description: Capture a bug, idea, or task as a ticket — discover the project's tracker and ticket conventions, check for duplicates, draft the ticket to match, then file it on go-ahead. Use only when I ask to file, add or create a ticket, or name /add-ticket.
 argument-hint: [one-line summary]
-disable-model-invocation: true
 allowed-tools: Bash(git *), Bash(gh *)
 ---
 
