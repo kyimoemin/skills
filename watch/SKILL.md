@@ -55,8 +55,7 @@ finished run. A sprint run log is identified by content — a `.md` in
 optional `# ...` heading naming the run (which becomes the progress file's
 title) — so stray notes are never mistaken for one.
 
-For the chosen run it reads its sprint logs, `review-<ticket>-r<N>.md`
-files as the live mid-ticket signal, and `qa-<ticket>[-<N>].md`
+For the chosen run it reads its sprint logs and `qa-<ticket>[-<N>].md`
 verdicts. It writes `.sprint/progress-<sprint-id>.md` (re-runs
 `<id>-2.md`, `-3.md` share the one file) plus an identical copy at the
 fixed path `.sprint/progress-current.md`, and touches nothing else: no network, no dependencies (it reads the `origin` remote locally
@@ -66,6 +65,7 @@ QA lines the funnel continues → QA running → QA done (passed or skipped),
 with failed or blocked checks and the regression run's state hanging off
 it. It shows the
 `NOTE:` written just before `RUN STOPPED` as why it stopped. The
-ticket table links each PR, the newest review round file and the QA file,
+ticket table links each PR and the QA file and shows the review-round
+count from the return line (the rounds themselves are comments on the PR),
 and only the newest five decisions stay unfolded. Tests live
 next to the script (`bun test` in the scripts dir).

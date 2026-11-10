@@ -7,7 +7,7 @@
 // sprint-progress.md in the project folder.
 //
 // Derives everything read-only from what the suite already writes
-// (.sprint/ logs, review-round files, qa result files) and regenerates
+// (.sprint/ logs, qa result files) and regenerates
 // .sprint/progress-<sprint-id>.md — a mermaid progress strip plus ticket
 // table that VS Code's markdown preview live-refreshes — and a copy at the
 // fixed path .sprint/progress-current.md, so one open preview always shows
@@ -91,8 +91,7 @@ const STATE_BADGE: Record<string, string> = {
   "qa-running": "🔵 qa-running",
   pending: "⚪ pending",
 };
-const badge = (state: string): string =>
-  STATE_BADGE[state] ?? (state.startsWith("in-review") ? `🔵 ${state}` : `⚪ ${state}`);
+const badge = (state: string): string => STATE_BADGE[state] ?? `⚪ ${state}`;
 
 /** Waiting/running/complete panel. */
 function waitingSection(state: DashState, runningNote: string): string[] {
@@ -116,7 +115,7 @@ function waitingSection(state: DashState, runningNote: string): string[] {
   return lines;
 }
 
-/** `linkBase` prefixes the round and QA links, which are relative to the
+/** `linkBase` prefixes the QA links, which are relative to the
  *  repo's .sprint/: empty there, `<repo>/.sprint/` from a project folder. */
 function ticketTable(state: DashState, emptyNote: string, heading = "## Tickets", linkBase = ""): string[] {
   const lines: string[] = [heading, ""];
@@ -124,13 +123,14 @@ function ticketTable(state: DashState, emptyNote: string, heading = "## Tickets"
     lines.push("| Ticket | State | PR | Rounds | QA | Detail |");
     lines.push("|---|---|---|---|---|---|");
     // links are relative to the progress file, which sits in .sprint/
-    // beside the round and qa files it points at
+    // beside the qa files it points at
     const link = (text: string, href?: string) => (href ? `[${text}](${href})` : text);
     for (const t of state.tickets) {
       const pr = t.pr
         ? link(`#${t.pr.number}`, state.repoUrl && `${state.repoUrl}/pull/${t.pr.number}`)
         : "—";
-      const rounds = t.reviewRounds ? link(String(t.reviewRounds), t.reviewFile && linkBase + t.reviewFile) : "—";
+      // a count only: the rounds themselves are comments on the PR
+      const rounds = t.reviewRounds ? String(t.reviewRounds) : "—";
       const qa = t.qa ? link(t.qa, t.qaFile && linkBase + basename(t.qaFile)) : "—";
       lines.push(
         `| \`${mdCell(t.id)}\` | ${badge(t.state)} | ${pr} | ${rounds} | ${qa} | ${mdCell(t.detail ?? "")} |`,
@@ -185,7 +185,7 @@ function rawTailSection(state: DashState): string[] {
 export function funnel(state: DashState) {
   const inState = (...names: string[]) =>
     state.tickets.filter((t) => names.some((n) => t.state === n || t.state.startsWith(n)));
-  const working = inState("in-progress", "in-review");
+  const working = inState("in-progress");
   const ready = inState("ready-to-merge");
   const awaitingQa = inState("merged");
   const qaRunning = inState("qa-running");
@@ -442,7 +442,6 @@ export function projectRepos(dir: string): { prefix: string; path: string }[] | 
  *  still be found, so qa-* files are ruled out by the content check, not
  *  by prefix. */
 const NOT_A_SPRINT_LOG = /^(?:progress-|\.)/;
-const ROUND_FILE = /^review-.+-r\d+\.md$/;
 
 export function looksLikeSprintLog(text: string): boolean {
   for (const raw of text.split("\n")) {
@@ -500,7 +499,7 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
   const sprintLogs: LogFile[] = [];
   for (const name of entries) {
     try {
-      if (!name.endsWith(".md") || NOT_A_SPRINT_LOG.test(name) || ROUND_FILE.test(name)) continue;
+      if (!name.endsWith(".md") || NOT_A_SPRINT_LOG.test(name)) continue;
       const f = await read(name);
       if (looksLikeSprintLog(f.text)) sprintLogs.push(f);
     } catch {
@@ -509,7 +508,6 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
   }
   sprintLogs.sort(newestFirst);
 
-  const roundFiles = entries.filter((n) => ROUND_FILE.test(n));
   // run logs out of the qa scan: a sprint log named qa-<something>.md must
   // not double as a QA result file for a bogus ticket
   const logNames = new Set(sprintLogs.map((f) => f.name));
@@ -557,7 +555,6 @@ export async function collectState(projectDir: string): Promise<{ state?: DashSt
       sprintId: id,
       sprintLogPath: `.sprint/${winner.name}`,
       sprintRun: runOf.get(winner.name)!.run,
-      roundFiles,
       qaSignals: await qaSignals([...sprint.order, ...Object.keys(sprint.tickets)]),
       now: new Date(),
     }),

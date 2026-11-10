@@ -65,7 +65,6 @@ export interface TicketState {
   reviewRounds?: number;
   qa?: string;
   qaFile?: string;
-  reviewFile?: string; // basename of the newest review round file on disk
 }
 
 export interface DashState {
@@ -217,7 +216,7 @@ export function parseSprintLog(text: string): SprintParse {
       // The merge phase's own line. The documented form is `<ticket>
       // merged, ...` (handled below), but runs also write `MERGE: <ticket>
       // PR #N merged into <base> at <sha>` — the same event. Unparsed, a
-      // merged ticket stays stuck at in-review for the life of the file.
+      // merged ticket never reads as merged for the life of the file.
       // Ids are read from the text BEFORE the word "merged", so a trailing
       // "unblocks ABC-9" can't mark an unmerged ticket merged.
       resume();
@@ -332,19 +331,6 @@ export function parseSprintLog(text: string): SprintParse {
   return out;
 }
 
-/** Round files on disk are the live mid-ticket signal: they appear as
- *  each reviewer round finishes, before the implementer returns. */
-export function roundsFromFiles(basenames: string[]): Record<string, number> {
-  const rounds: Record<string, number> = {};
-  for (const name of basenames) {
-    const m = name.match(/^review-(.+)-r(\d+)\.md$/);
-    if (!m) continue;
-    const [, ticket, n] = m;
-    rounds[ticket] = Math.max(rounds[ticket] ?? 0, Number(n));
-  }
-  return rounds;
-}
-
 /** QA result files are `qa-<ticket>.md` or numeric-suffix reruns
  *  `qa-<ticket>-<N>.md`; the highest-suffix file is the ticket's outcome
  *  (the qa skill's own rule). "qa-T-14-2.md" is ambiguous in isolation
@@ -395,11 +381,11 @@ export function qaHint(text: string): QaSignal["hint"] {
 }
 
 /** Ticket rows: the per-ticket state machine over one run log's events,
- *  decorated by round files, QA files and PR lookups. */
+ *  decorated by QA files and PR lookups. Review rounds live on the PR as
+ *  comments, so the only count this sees is the return line's. */
 interface DeriveInputs {
   events: Map<string, TicketEvents>;
   ids: Set<string>;
-  rounds: Record<string, number>;
   qaByTicket: Map<string, QaSignal>;
   prs?: Record<number, PrInfo>;
   /** RUN COMPLETE: no check can still be running, whatever the log's qa lines say */
@@ -407,17 +393,15 @@ interface DeriveInputs {
 }
 
 function deriveTickets(inp: DeriveInputs): TicketState[] {
-  const { events, ids, rounds, qaByTicket } = inp;
+  const { events, ids, qaByTicket } = inp;
   const tickets: TicketState[] = [];
   for (const id of ids) {
     const ev = events.get(id);
     const qa = qaByTicket.get(id);
-    const round = rounds[id];
     const t: TicketState = { id, state: "pending" };
 
     if (ev?.pr) t.pr = inp.prs?.[ev.pr] ?? { number: ev.pr };
-    t.reviewRounds = Math.max(ev?.reviewRounds ?? 0, round ?? 0) || undefined;
-    if (round) t.reviewFile = `review-${id}-r${round}.md`;
+    t.reviewRounds = ev?.reviewRounds || undefined;
     if (qa) {
       t.qaFile = qa.path;
       t.qa = qa.hint;
@@ -460,13 +444,11 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
       // `complete` already means implemented, reviewed clean and finalized,
       // and /sprint stops before merge — so the ticket is waiting on a merge
       // decision whether or not the return line spelled "ready-to-merge".
-      // Gating on the token left most finished tickets reading "in-review".
+      // Gating on the token left most finished tickets reading as unfinished.
       t.state = "ready-to-merge";
     } else if (ev?.returned === "blocked" || ev?.returned === "failed") {
       t.state = ev.returned;
       t.detail = ev.blockedReason;
-    } else if (ev?.dispatched && round) {
-      t.state = `in-review (round ${round})`;
     } else if (ev?.dispatched) {
       t.state = "in-progress";
     }
@@ -503,7 +485,6 @@ export interface SprintBuildInputs {
   sprintId: string; // log basename without the -N run suffix
   sprintLogPath?: string;
   sprintRun?: number;
-  roundFiles: string[];
   qaSignals: QaSignal[];
   prs?: Record<number, PrInfo>;
   now: Date;
@@ -524,7 +505,6 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
   const tickets = deriveTickets({
     events,
     ids: new Set<string>([...sp.order, ...events.keys()]),
-    rounds: roundsFromFiles(inp.roundFiles),
     qaByTicket: new Map(inp.qaSignals.map((q) => [q.ticket, q])),
     prs: inp.prs,
     runComplete: sp.run === "complete",

@@ -53,7 +53,6 @@ describe("renderMarkdown — sprint view", () => {
         sprintId: "sprint-3",
         sprintLogPath: ".sprint/sprint-3.md",
         sprintRun: 1,
-        roundFiles: ["review-ABC-9-r1.md"],
         qaSignals: [],
         now: NOW,
       }),
@@ -83,7 +82,6 @@ describe("renderMarkdown — sprint view", () => {
         sprint: parseSprintLog(SPRINT_STANDALONE),
         sprintId: "sprint-3",
         sprintRun: 2,
-        roundFiles: [],
         qaSignals: [],
         now: NOW,
       }),
@@ -97,7 +95,6 @@ describe("renderMarkdown — sprint view", () => {
         sprint: parseSprintLog("# §4 — wave-3.5 DI track\n" + SPRINT_STANDALONE),
         sprintId: "redesign",
         sprintRun: 13,
-        roundFiles: [],
         qaSignals: [],
         now: NOW,
       }),
@@ -231,11 +228,10 @@ describe("generate — fixed current file", () => {
 });
 
 describe("readability", () => {
-  const sprintState = (log: string, roundFiles: string[] = []) =>
+  const sprintState = (log: string) =>
     buildSprintState({
       sprint: parseSprintLog(log),
       sprintId: "s",
-      roundFiles,
       qaSignals: [{ ticket: "A-1", path: ".sprint/qa-A-1.md", hint: "pass" }],
       now: NOW,
     });
@@ -251,14 +247,11 @@ describe("readability", () => {
     expect(githubUrl("git@gitlab.com:a/b.git")).toBeUndefined();
   });
 
-  test("PR, newest review round and QA file are links", () => {
-    const state = sprintState("ORDER: A-1\nA-1 dispatched\nA-1 returned complete, PR #7\nA-1 merged\n", [
-      "review-A-1-r1.md",
-      "review-A-1-r2.md",
-    ]);
+  test("PR and QA file are links; review rounds are a count", () => {
+    const state = sprintState("ORDER: A-1\nA-1 dispatched\nA-1 returned complete, PR #7, 2 review rounds\nA-1 merged\n");
     state.repoUrl = "https://github.com/o/r";
     expect(renderMarkdown(state)).toContain(
-      "| `A-1` | 🟢 qa-pass | [#7](https://github.com/o/r/pull/7) | [2](review-A-1-r2.md) | [pass](qa-A-1.md) |",
+      "| `A-1` | 🟢 qa-pass | [#7](https://github.com/o/r/pull/7) | 2 | [pass](qa-A-1.md) |",
     );
   });
 
@@ -331,7 +324,7 @@ describe("project folder", () => {
     expect(projectRepos(dir)).toBeUndefined();
   });
 
-  const state = (log: string) => buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", roundFiles: [], qaSignals: [], now: NOW });
+  const state = (log: string) => buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", qaSignals: [], now: NOW });
 
   test("what waits on me comes first, named by repo; finished runs are one row", () => {
     const md = renderProjectMarkdown(
@@ -352,14 +345,13 @@ describe("project folder", () => {
 
   test("ticket links point into the repo's .sprint/", () => {
     const s = buildSprintState({
-      sprint: parseSprintLog("ORDER: AD-1\nAD-1 dispatched\nAD-1 returned complete, PR #7\n"),
+      sprint: parseSprintLog("ORDER: AD-1\nAD-1 dispatched\nAD-1 returned complete, PR #7\nAD-1 merged\n"),
       sprintId: "s",
-      roundFiles: ["review-AD-1-r1.md"],
-      qaSignals: [],
+      qaSignals: [{ ticket: "AD-1", path: ".sprint/qa-AD-1.md", hint: "pass" }],
       now: NOW,
     });
     const md = renderProjectMarkdown("p", [{ name: "admin", dir: "admin", state: s }], NOW.toISOString());
-    expect(md).toContain("[1](admin/.sprint/review-AD-1-r1.md)");
+    expect(md).toContain("[pass](admin/.sprint/qa-AD-1.md)");
   });
 
   test("writes the combined page and every repo's own files", async () => {
@@ -384,7 +376,7 @@ describe("project folder", () => {
 
 describe("QA phase in the running panel", () => {
   const render = (log: string) =>
-    renderMarkdown(buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", roundFiles: [], qaSignals: [], now: NOW }));
+    renderMarkdown(buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", qaSignals: [], now: NOW }));
 
   test("names what QA is checking instead of implementers", () => {
     const md = render("ORDER: CC-1 (auto)\nCC-1 dispatched\nCC-1 merged, PR #1\nCC-1 qa dispatched\n");
@@ -401,7 +393,7 @@ describe("QA phase in the running panel", () => {
 
 describe("QA stages in the funnel", () => {
   const stateOf = (log: string, qaSignals: QaSignal[] = []) =>
-    buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", roundFiles: [], qaSignals, now: NOW });
+    buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", qaSignals, now: NOW });
   const progress = (md: string) => md.slice(md.indexOf("## Progress"), md.indexOf("## Tickets"));
   // CC-1 skipped, CC-2 pass, CC-3 fail, CC-4 blocked, CC-5 running, CC-6 merged awaiting QA,
   // CC-7 parked, CC-8 not dispatched

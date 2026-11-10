@@ -4,7 +4,6 @@ import {
   parseSprintLog,
   qaFilesByTicket,
   qaHint,
-  roundsFromFiles,
   type QaSignal,
 } from "./parse";
 
@@ -73,20 +72,6 @@ describe("parseSprintLog", () => {
   });
 });
 
-describe("roundsFromFiles", () => {
-  test("max round per ticket, non-round files ignored", () => {
-    expect(
-      roundsFromFiles([
-        "review-T-14-r1.md",
-        "review-T-14-r2.md",
-        "review-ABC-9-r1.md",
-        "qa-T-14.md",
-        "sprint-3.md",
-      ]),
-    ).toEqual({ "T-14": 2, "ABC-9": 1 });
-  });
-});
-
 describe("qaFilesByTicket", () => {
   test("plain files, rerun suffix wins, known ids disambiguate", () => {
     expect(
@@ -149,7 +134,6 @@ describe("buildSprintState", () => {
       sprintId: "sprint-3",
       sprintLogPath: ".sprint/sprint-3.md",
       sprintRun: 1,
-      roundFiles: ["review-ABC-9-r1.md"],
       qaSignals: [],
       now: new Date("2026-08-10T12:00:00Z"),
     });
@@ -159,7 +143,7 @@ describe("buildSprintState", () => {
     expect(s.feature).toBe("sprint-3");
     expect(s.mode).toBe("serial");
     expect(s.tickets.map((t) => `${t.id}:${t.state}`)).toEqual([
-      "ABC-9:in-review (round 1)",
+      "ABC-9:in-progress",
       "ABC-12:ready-to-merge",
       "ABC-15:parked",
     ]);
@@ -181,7 +165,6 @@ describe("buildSprintState", () => {
         SPRINT_STANDALONE + "RUN STOPPED awaiting: ABC-15\nABC-12 merged\nRUN COMPLETE\n",
       ),
       sprintId: "sprint-3",
-      roundFiles: [],
       qaSignals: [],
       now: new Date("2026-08-10T12:00:00Z"),
     });
@@ -198,7 +181,6 @@ describe("sprint view — review regressions", () => {
     buildSprintState({
       sprint: parseSprintLog(log),
       sprintId: "s",
-      roundFiles: [],
       qaSignals: [],
       now: NOW,
     });
@@ -251,14 +233,13 @@ describe("sprint view — review regressions", () => {
 });
 
 // Forms real runs write that the documented example never showed. Lifted
-// from .sprint/redesign-13.md, where every ticket read "in-review" hours
+// from .sprint/redesign-13.md, where every ticket read as still in review hours
 // after the run had merged all three and appended RUN COMPLETE.
 describe("sprint view — merge-phase drift", () => {
   const build = (log: string) =>
     buildSprintState({
       sprint: parseSprintLog(log),
       sprintId: "redesign",
-      roundFiles: ["review-DI-61-r1.md", "review-DI-61-r2.md"],
       qaSignals: [],
       now: new Date("2026-08-20T12:00:00Z"),
     });
@@ -290,7 +271,7 @@ describe("sprint view — merge-phase drift", () => {
         "MERGE: DI-61 PR #88 merged into redesign at 3c6c09c\n",
     );
     expect(s.tickets[0].state).toBe("merged");
-    expect(s.tickets[0].reviewRounds).toBe(2); // round files, no "N review rounds" in the line
+    expect(s.tickets[0].reviewRounds).toBeUndefined(); // no "N review rounds" in the line
   });
 
   test("`parked` mentioning an earlier return is not read as a return", () => {
@@ -340,7 +321,6 @@ describe("sprint view — re-dispatch forms and stop reasons", () => {
     buildSprintState({
       sprint: parseSprintLog(log),
       sprintId: "s",
-      roundFiles: [],
       qaSignals: [],
       now: new Date("2026-09-25T12:00:00Z"),
     });
@@ -444,7 +424,6 @@ FILED: skipped, duplicate of ABC-0: flaky clock
     buildSprintState({
       sprint: parseSprintLog(log),
       sprintId: "sprint-17",
-      roundFiles: [],
       qaSignals: [],
       now: new Date("2026-09-27T12:00:00Z"),
     });
@@ -481,7 +460,6 @@ describe("sprint view — QA phase in flight", () => {
     buildSprintState({
       sprint: parseSprintLog(log),
       sprintId: "sprint-12",
-      roundFiles: [],
       qaSignals: [],
       now: new Date("2026-10-30T12:00:00Z"),
     });
@@ -504,7 +482,6 @@ describe("sprint view — QA phase in flight", () => {
     const s = buildSprintState({
       sprint: parseSprintLog(merged + "CC-1 qa dispatched\n"),
       sprintId: "sprint-12",
-      roundFiles: [],
       qaSignals: [{ ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "fail" }],
       now: new Date("2026-10-30T12:00:00Z"),
     });
@@ -524,7 +501,6 @@ describe("sprint view — QA phase in flight", () => {
     const s = buildSprintState({
       sprint: parseSprintLog(merged + "CC-1 qa dispatched\nCC-1 qa returned pass\nRUN COMPLETE\n"),
       sprintId: "sprint-12",
-      roundFiles: [],
       qaSignals: [{ ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "pass" }],
       now: new Date("2026-10-30T12:00:00Z"),
     });
@@ -541,7 +517,6 @@ describe("sprint view — QA verdicts", () => {
     buildSprintState({
       sprint: parseSprintLog(log),
       sprintId: "sprint-22",
-      roundFiles: [],
       qaSignals,
       now: new Date("2026-11-04T12:00:00Z"),
     });
