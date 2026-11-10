@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>ui-verify fiber harness</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; background: #fff; color: #111; font: 16px system-ui; }
+  @media (prefers-color-scheme: dark) { body { background: #0b0e18; color: #eee; } }
+  .tile { width: 200px; height: 120px; }
+</style>
+<body>
+<div class="tile">ui-verify driver self-test</div>
+<script>
+// A synthetic React fiber tree with the shape cdp.mjs snippets assume.
+// This tests the WALK ALGORITHM, not whether real RN/Fabric fibers look like this.
+function fiber(type, props, children, stateNode) {
+  const f = { type, memoizedProps: props || null, memoizedState: null,
+              stateNode: stateNode || null, child: null, sibling: null, return: null };
+  (children || []).forEach((c, i) => {
+    c.return = f;
+    if (i === 0) f.child = c; else children[i - 1].sibling = c;
+  });
+  return f;
+}
+const txt = (s) => fiber('RCTRawText', { text: s }, []);
+
+const prefsStore = (() => {
+  let state = { theme: 'system' };
+  const api = {
+    getState: () => state,
+    setState: (p) => { state = Object.assign({}, state, p); },
+    subscribe: () => () => {},
+  };
+  state.setTheme = (t) => { state = Object.assign({}, state, { theme: t }); };
+  return api;
+})();
+
+const scroller = { y: 0, scrollTo({ y }) { this.y = y; } };
+
+const tree = fiber('RCTView', null, [
+  fiber('ScrollView', { storeBag: prefsStore }, [
+    fiber('RCTText', { style: [{ fontFamily: 'Inter_800ExtraBold' }, { fontSize: 36, lineHeight: 40 }] }, [txt('UI Kit')]),
+    fiber('RCTText', { style: { fontFamily: 'Inter_600SemiBold', fontSize: 17 } }, [txt('Row title 17/600')]),
+    fiber('RCTText', { style: { fontFamily: 'JetBrainsMono_400Regular', fontSize: 15 } }, [txt('3:42 · 128 plays')]),
+    fiber({ displayName: 'GlassView' }, { surface: 'panel' }, [
+      fiber('RCTText', { style: { fontFamily: 'Inter_400Regular', fontSize: 15 } }, [txt('liquid')]),
+    ]),
+    fiber({ name: 'Button' }, { onPress: () => { globalThis.__pressed = (globalThis.__pressed || 0) + 1; } }, [
+      fiber('RCTText', { style: { fontFamily: 'Inter_600SemiBold', fontSize: 15 } }, [txt('Play')]),
+    ]),
+  ], scroller),
+]);
+
+const roots = new Set([{ current: tree }]);
+globalThis.__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+  renderers: new Map([[1, {}]]),
+  getFiberRoots: () => roots,
+};
+globalThis.__scroller = scroller;
+</script>
+</body>
