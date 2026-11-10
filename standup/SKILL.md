@@ -35,6 +35,30 @@ command for this folder with ids from any repo.
      `returned failed` → Needs you; `returned complete` with no later
      `merged` line → awaiting merge. No `.sprint/` → skip this; don't
      restore it from the archive ref (read-only).
+     An `auto` run and the QA phase leave more that waits on me. Each of
+     these goes under Needs you:
+     - A ticket whose last line is `merge skipped: <reason>` → the reason
+       is the action.
+     - `TRACKING: PR #<n> open` with no later `TRACKING: PR #<n> merged` →
+       `— action: merge via /sprint`; its tickets aren't closed until it
+       merges.
+     - A ticket whose newest `qa` line is `qa blocked`, or `qa pass` with
+       unverifiable criteria, and `QA: regression blocked` → the question
+       or the count from the line, with its results path.
+     - `qa fail` and `QA: regression fail` → name it with its results
+       path. If a later `FILED:` line is from that ticket, the bug is
+       already filed: say that instead of asking for an action.
+     - `FILED: <id> proposed …` → one line listing the ids,
+       `— action: triage`. Leave out any the tracker shows I have already
+       triaged (moved into a sprint, closed, or no longer marked
+       proposed). This is the only place a ticket from outside the sprint
+       appears in the report.
+     - A last line of `RUN STOPPED awaiting: fresh session` →
+       `— action: run /sprint auto in a new session`.
+
+     If the log's last line is neither `RUN COMPLETE` nor `RUN STOPPED …`,
+     a run is working or was interrupted. Say so under Focus, and treat a
+     ticket whose last line is `dispatched` as in progress.
    - While reading, note dependency/blocked signals: `blocked` labels,
      "depends on #N" in issue bodies, checklist items pointing at other
      tickets — step 3 needs these to judge what's ready to start.
@@ -104,8 +128,9 @@ command for this folder with ids from any repo.
        open PR is NEVER Dispatchable — it goes under "In progress" (or
        Needs you, if its PR is awaiting merge); listing it here would
        dispatch a second implementer onto in-flight work. Nor is a ticket
-       the run log shows parked — re-dispatching it without an answer
-       blocks on the same question again.
+       the run log shows dispatched with no return yet (it is in flight),
+       or parked — re-dispatching a parked ticket without an answer blocks
+       on the same question again.
      - `### Needs input` — could be dispatched once one specific
        gap is answered: ambiguous criteria, an undecided design/product
        choice, a missing value. Name the gap on the ticket's line
