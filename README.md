@@ -1,7 +1,7 @@
 # Dev-workflow suite
 
-The Claude Code skills in this repo plus three subagents
-([kyimoemin/agents](https://github.com/kyimoemin/agents)) together run
+The Claude Code skills in this repo plus the subagents in
+[kyimoemin/agents](https://github.com/kyimoemin/agents) together run
 the delivery half of a software lifecycle: tickets → sprint → QA → release.
 Every skill discovers the project's tracker and conventions at runtime, so
 there are no per-repo variants. Two rules hold everywhere: **nothing
@@ -38,6 +38,8 @@ flowchart TB
     end
 
     standup["/standup\nread-only status"]
+    audit["/audit\nread-only, one auditor per lens"]
+    auditors[["audit-*\nproduct · ui-ux · business · architecture\nengineering · security · release-ops"]]
     watch["/watch\nlive progress file"]
 
     tracker[("tracker / backlog\ncards: implementer is sole writer")]
@@ -60,6 +62,8 @@ flowchart TB
     dotsprint -- "QA gate" --> deploy
     deploy --> live([release live])
     standup -.-> tracker
+    audit -- "1 lens each" --> auditors
+    auditors -. "reports → docs/audits/" .-> audit
     watch -.-> dotsprint
 ```
 
@@ -81,6 +85,8 @@ nodes are subagents — everything else is a skill you invoke.
 | Anytime | `/standup` | Read-only: where things stand, grouped by who can act, ends with a `/sprint` line |
 | Anytime | `/watch` | Writes `.sprint/progress-<sprint-id>.md` for the live run, mirrored to the fixed `.sprint/progress-current.md` — funnel, waiting-on-you list, ticket table, derived read-only from the run's own log; `--watch` keeps it live |
 | Anytime | `ui-verify` | Proves a UI renders and behaves as claimed on a simulator, emulator or browser, with measured evidence; implementers pick it up when criteria ask for on-device proof |
+| Anytime | `/audit` | `all`, or lens names (`/audit security`): one read-only `audit-*` subagent per lens, top findings checked against the code, one ranked report in `docs/audits/<date>/summary.md` (or `.audit/` in a repo with no `docs/`); files no tickets |
+| Anytime | `audit-*` | Seven read-only auditors (product, ui-ux, business, architecture, engineering, security, release-ops); each writes one report, runs no checks and touches nothing live |
 
 ## The handshakes that hold it together
 

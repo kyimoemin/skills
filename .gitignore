@@ -10,6 +10,7 @@
 !/deploy/
 !/watch/
 !/ui-verify/
+!/audit/
 # Apple-shipped wallpapers: local test input only, not ours to publish.
 /ui-verify/fixtures/backdrop-busy.png
 /ui-verify/fixtures/backdrop-mid.png
