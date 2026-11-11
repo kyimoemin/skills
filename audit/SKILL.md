@@ -2,7 +2,7 @@
 description: Audit the project from one or more points of view — dispatch a read-only audit-* subagent per lens (product, ui-ux, business, architecture, engineering, security, release-ops), check their top findings against the code, and write one ranked report. `all` runs every lens; lens names run only those. Read-only — files no tickets.
 argument-hint: "[all | product | ui-ux | business | architecture | engineering | security | release-ops ...]"
 disable-model-invocation: true
-allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git ls-files:*), Bash(gh pr list:*), Bash(gh repo view:*), Bash(mkdir:*), Bash(ls:*)
+allowed-tools: Bash(git status:*), Bash(git log:*), Bash(git show:*), Bash(git branch:*), Bash(git rev-parse:*), Bash(git ls-files:*), Bash(gh pr list:*), Bash(gh issue list:*), Bash(gh issue view:*), Bash(gh repo view:*), Bash(mkdir:*), Bash(ls:*)
 ---
 
 # Audit
@@ -44,7 +44,10 @@ what they read. A thin brief gets a generic checklist back. Spend a few
 cheap reads here; don't audit anything yourself yet.
 
 - **Conventions.** Read the repo's `CLAUDE.md` and `AGENTS.md`.
-- **Stage.** Work out where the project stands: what has shipped or been
+- **Stage.** Start with what kind of project it is (mobile app, web app,
+  backend service, library, CLI) and how it makes money, if it does. The
+  auditors skip the checks that don't fit it. Then work out where the
+  project stands: what has shipped or been
   submitted, what is in flight, what comes next, and how much is open.
   Sources: the plan, the active sprint or milestone, a release checklist,
   `git log`, open PRs, the tracker's status counts. Write it as 3–6 lines
@@ -54,8 +57,10 @@ cheap reads here; don't audit anything yourself yet.
   the recorded decisions in the architecture or spec docs. Name them
   briefly; the auditors read the docs for the detail.
 - **Covered.** Earlier audits: a `docs/audits/` folder or the like, and
-  the newest earlier run in the audit folder (step 2). Name the files so the auditors point to
-  them instead of redoing them.
+  the newest earlier run in the audit folder (step 2). Name the files, each
+  with the commit it ran at (an earlier run's `summary.md` records its
+  sha), so the auditors skip areas unchanged since and re-check the
+  earlier top findings.
 - **Machine and privacy rules** the project instructions set (memory
   limits, ports, files not to open, private documents). Pass them on.
 - **What was audited.** Record the branch, the HEAD sha, and whether the
@@ -114,11 +119,14 @@ not. Before anything reaches me:
     ranking and list it under Dropped with the reason.
   - `unchecked`: you couldn't check it statically (needs a device, a live
     service, or the owner). Keep it, labelled.
-- **Check the tracker claim.** Where a finding says "no ticket", grep the
-  tracker yourself for the top ones.
+- **Check the tracker claim.** Where a top finding says "no ticket" or
+  "tracker not checked", check the tracker yourself: ticket files,
+  `gh issue list`, or the Jira, Linear or Trello tools this session has.
+  If you can't reach it either, label the finding "tracker not checked",
+  never "untracked".
 - **Merge duplicates** across lenses into one finding that names each
-  lens that raised it. Two lenses reaching the same finding on their own
-  is a signal: say so.
+  lens that raised it. The checklists give each topic to one lens, so
+  two lenses reaching the same finding on their own is a signal: say so.
 - **Re-rank across lenses** against the stage. Severity from one auditor
   isn't comparable with another's until you have read both.
 - Don't run the test suite, builds or anything live to verify. If a
@@ -133,7 +141,9 @@ Write `<audits>/<run>/summary.md`:
 3. **Verdict:** 3–5 lines across all lenses.
 4. **Top findings:** at most 15, ranked. Each: title, severity, lens or
    lenses, evidence, verification mark, the existing ticket (id and
-   title) or "untracked", and the fix in a line or two.
+   title) or "untracked", and the fix in a line or two. An earlier
+   finding an auditor reports still open ranks here again, marked
+   `still open since <run>`.
 5. **By lens:** each lens's verdict and a link to its report.
 6. **Dropped:** findings that failed verification, one line each.
 7. **Not checked:** what no auditor could cover.
