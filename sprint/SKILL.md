@@ -72,6 +72,15 @@ its worktree whatever the rule says. Note for me if I ask: a `Write(...)`
 path rule is never consulted; only `Edit(...)` path rules are, and they
 cover writes.
 
+**Check the base is pushed before the first dispatch.** Implementers
+branch from `origin/<base>` and block when the local base has commits the
+remote lacks, so one forgotten push (`/plan-sprint` commits its roll
+without pushing) would park every ticket in the run. Run `git fetch origin
+<base>`, then `git log --oneline origin/<base>..<base>`. If it prints
+anything, list those commits and ask me whether to push them; push only on
+my word, and dispatch nothing until the base is pushed. An `unattended`
+run stops and reports instead. A local base that is behind is fine.
+
 Append to the run log with a quoted heredoc — not the Edit or Write tool,
 which rewrite the whole file, and not `echo '…'`, which breaks on the first
 apostrophe in a line:

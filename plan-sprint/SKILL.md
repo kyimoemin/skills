@@ -46,6 +46,8 @@ and stop.
    level changes, replace the old token or label — never leave both.
    Carried tickets keep their level unless I changed it.
 6. **Commit** the roll to the current branch, if it changed repo files
-   (`chore: close <iteration>, open <next>`). Do not push without go-ahead.
+   (`chore: close <iteration>, open <next>`). Do not push without go-ahead,
+   but ask for it: /sprint's implementers branch from the remote base, so
+   it won't dispatch until this commit is pushed.
 7. **Report** one line: iteration closed, next opened, carried tickets — plus
    a one-line retro: planned vs finished for the closed iteration.
