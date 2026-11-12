@@ -46,16 +46,22 @@ repo, with these changes:
   usual. `auto` handles this with its passes already.
 - **Waves: one ticket per repo, no worktree isolation.** The project folder
   isn't a repo, so `isolation: "worktree"` has nothing to isolate from.
-  Each implementer works in its repo's main checkout, so a wave takes at
-  most one ticket per repo. Parallelism comes from different repos. To run
+  Each implementer works in its repo's main checkout, so at most one
+  ticket per repo runs at a time: a freed slot takes the next ready ticket
+  from a repo with no implementer running, never a second one in the same
+  repo. Parallelism comes from different repos. To run
   several tickets of ONE repo in parallel, run `/sprint` inside that repo.
   A **hub** repo (`yes` in the table's Hub column) is one the others run
   against from its main checkout, such as a mock server. A hub ticket never
   shares a wave with a ticket from another repo, because that implementer
   would be testing against whatever branch the hub implementer has checked
-  out. Hub tickets run in their own waves; the other repos' tickets run in
+  out. Hub tickets run alone: once a hub ticket is ready, stop refilling
+  freed slots, let the running tickets drain, then dispatch it with every
+  slot empty and refill nothing while it runs. That drain is a separation
+  rule, not an ordering preference. The other repos' tickets run in
   parallel with each other. An implementer leaves its checkout on its
-  ticket branch, so after every hub wave put the hub's main checkout back
+  ticket branch, so after every hub ticket returns — before any slot
+  refills — put the hub's main checkout back
   on the base its PRs target (`git -C <hub> checkout <base>`, from
   `baseRefName`), if the checkout is clean. If it isn't, stop and tell me.
   Otherwise the next wave tests against unmerged hub code.

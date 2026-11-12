@@ -159,10 +159,10 @@ ABC-12 dispatched
 ABC-15 dispatched
 ABC-12 returned complete, PR #204, 2 review rounds, head a1b2c3f, ready-to-merge, tracker: Trello/Sprint Board
 DECISION: auth errors now surface as 401 not 500 (ABC-12)
-ABC-15 returned blocked: acceptance criteria don't cover expired tokens
-ABC-15 parked
 WAVE: ABC-9
 ABC-9 dispatched
+ABC-15 returned blocked: acceptance criteria don't cover expired tokens
+ABC-15 parked
 ABC-9 returned complete, PR #207, 1 review round, head 9c4d1e2, ready-to-merge, tracker: Trello/Sprint Board
 RUN STOPPED awaiting: ABC-15
 ABC-12 merged, PR #204, squashed to e7b3f02, branch deleted
@@ -170,6 +170,8 @@ ABC-12 merged, PR #204, squashed to e7b3f02, branch deleted
 
 Replayed, that says ABC-12 is merged, ABC-9 is finalized and awaiting my
 merge decision, and ABC-15 is parked on a question only I can answer.
+ABC-9 depends on ABC-12, so it took ABC-12's slot the moment ABC-12
+returned, while ABC-15 was still running.
 
 **Three of those lines are read strictly** — they are what the progress file
 derives ticket state from, and a line it can't read leaves a finished ticket
@@ -308,8 +310,9 @@ Structure only — the sections around it are the rulebook.
 
 ```mermaid
 flowchart TB
-    start(["log ready, ORDER: planned"]) --> wave{plan next wave}
-    wave --> disp["dispatch the wave in ONE message
+    start(["log ready, ORDER: planned"]) --> wave{"fill free slots
+with ready tickets"}
+    wave --> disp["dispatch them in ONE message
 cap 3 or the repo's limit, worktree-isolated"]
     disp --> impl[["ticket-implementer per ticket
 branch, code + tests, PR, finalize"]]
@@ -322,7 +325,7 @@ log the reason, never fix it yourself"]
 card at ready-to-merge, if the board has it"]
     park --> left{runnable tickets left?}
     rec --> left
-    left -- "yes" --> wave
+    left -- "yes, on every return" --> wave
     left -- "no, some parked" --> stopped(["RUN STOPPED awaiting
 needs my answers"])
     left -- "no, all returned" --> stop([summary, then STOP])
@@ -372,14 +375,23 @@ tickets apart even without a dependency link:
 - any ticket whose dependencies you cannot confidently determine. When in
   doubt, serialize: a slow run is recoverable, tangled branches are not.
 
+Never hold a ready ticket back to a later wave or pass for ordering
+preference ("last", "after the chain") — the order of the ids I name is not
+a dependency; only `serial` (below) makes it binding. A ticket is ready once every ticket
+it depends on has returned `complete` and the separation rules above don't
+hold it apart from a running one; a ready ticket takes the first free slot.
+Fixes to the test harness or a
+known flake go first: every other implementer pays for the flake until they
+land.
+
 If the word `serial` appears in the arguments (`/sprint serial ABC-1
-ABC-2`, `/sprint serial all`), every wave is exactly one ticket — strict
-one-at-a-time in the given order, no exceptions. The flag also binds any
+ABC-2`, `/sprint serial all`), there is one slot and every wave is exactly
+one ticket — strict one-at-a-time in the given order, no exceptions. The flag also binds any
 resume of that run: record it by appending ` (serial)` to the `ORDER:`
 line, and honor it on replay.
 
-Cap a wave at 3 concurrent implementers — a wider wave runs in batches of
-the cap. A repo can lower the cap with a `sprint: max <n> parallel` line
+Run at most 3 implementers at once — three slots. A wider wave dispatches
+the first 3; the rest take slots as they free up (below). A repo can lower the cap with a `sprint: max <n> parallel` line
 in its `CLAUDE.md` or `AGENTS.md` (each implementer runs the test suite
 and spawns a reviewer, which a small machine feels); grep for it when
 planning, and treat `max 1 parallel` as `serial`. It never raises the cap
@@ -387,12 +399,18 @@ above 3. A `<n>i` argument replaces the repo's line for this run (see
 **Per-run caps**). When a wave dispatches, append `WAVE: <ids>` to the run log, then the
 individual `dispatched` lines. Dispatch the whole wave in ONE message
 (parallel tool calls), each dispatch with worktree isolation
-(`isolation: "worktree"`) so no two implementers share a working tree; a
-single-ticket wave may run in the main checkout without isolation.
-Wait for the entire wave to return before planning the next —
-append each return line as it arrives — plus `WORKTREE: <ticket> <path>`
-when the tool result reports a worktree it kept — and apply step 3's parking to
-dependents when the next wave is planned. Merges still happen only in the
+(`isolation: "worktree"`) so no two implementers share a working tree. A
+dispatch may skip isolation and run in the main checkout only when it will
+be the sole implementer running — a one-ticket wave with every other slot
+empty. Any dispatch made alongside or while another implementer runs —
+including a slot refill — goes to a worktree.
+Don't wait for the whole wave. Append each return line as it arrives —
+plus `WORKTREE: <ticket> <path>` when the tool result reports a worktree it
+kept — and apply step 3's parking to its dependents. Then fill its slot
+right away with the next ticket that is ready now (as defined above). Log it as its own
+`WAVE: <id>` line, then `dispatched`. If nothing is ready, leave the slot
+empty until the next return. The pass ends, and the merge phase starts,
+once every slot is empty. Merges still happen only in the
 merge phase, so `main` never moves under a running wave; branch collisions
 surface, if at all, as ordinary PR conflicts the merge phase already
 handles.
@@ -684,7 +702,8 @@ closes + files follow-ups and QA bugs"]]
   have caught up. With explicit
   ticket ids, the run takes those, merges them, and ends — no further
   passes.
-- **The merge gate doesn't stop.** Once a pass's waves have all returned,
+- **The merge gate doesn't stop.** Once a pass's slots are all empty
+  (every ticket it dispatched has returned),
   run the merge phase on every `complete` ticket, in order, exactly as
   written — re-verify in full (CI green, mergeable, head SHA matches the
   log), conflicts go to the rebase dispatch, any other failing check skips
