@@ -84,6 +84,11 @@ Check the write permission too: every verifier writes its results under
 stalls on a prompt. Say so in one
 line and let me decide whether to add it — don't add it yourself.
 
+Set `effort: high` on every qa-verifier dispatch, ticket checks and the
+regression run alike. The agent file sets no effort of its own; /sprint
+sets its own levels per ticket, and a standalone /qa run checks
+everything at high.
+
 Then dispatch, record, and sync as phase.md says. Continue past a blocked
 verifier and surface every blocked one together at the end.
 

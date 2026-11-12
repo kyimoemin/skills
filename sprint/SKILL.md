@@ -251,6 +251,33 @@ by appending `CAPS: <n>i <n>q` right after the run's first `ORDER:` line
 invocation gives its own caps; then append a new `CAPS:` line, and the last
 one wins.
 
+**Effort per dispatch.** Set `effort` on every dispatch you make. Each
+ticket's level is chosen at sprint planning (/plan-sprint) and stored with
+the ticket in the iteration: an `[effort: high]` or `[effort: medium]` token
+on the ticket's line in a file-based list, or an `effort: high` /
+`effort: medium` label on a card or issue tracker. Read it when planning
+the order, from the same place you read the iteration's tickets — don't
+read the ticket body for it. Then:
+
+- **Implementer, first dispatch:** the ticket's planned level.
+- **Always high:** a resume after a block, a rebase, and a re-dispatch
+  after a failed or 3-round review, whatever the planned level.
+- **QA ticket check:** the ticket's planned level. **Regression run** and
+  **close-tracking:** medium. **Prune proposal:** low — it only proposes
+  cuts, and nothing is cut until I approve them.
+- **No planned level** (an unmarked ticket, or an iteration planned before
+  this rule): high, for the implementer and its QA check alike. Don't
+  judge a level yourself — /plan-sprint and /add-ticket own that. A ticket
+  carrying two levels counts as high.
+
+The model stays whatever the agent file sets; this sets effort only. Put
+the level in the implementer's prompt as `effort: <level>` too, so it can
+spawn its reviewers to match. Log the choice right after the `dispatched`
+line, as `NOTE: <ticket> effort <level> (<source>)`, for example
+`NOTE: CC-366 effort medium (planned)` or
+`NOTE: CC-370 effort high (no planned level)`, so a later run can
+compare effort against review rounds and run time.
+
 ## Progress file
 
 The run log is built for replay, not for reading. The human-facing view is

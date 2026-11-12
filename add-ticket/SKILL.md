@@ -27,9 +27,17 @@ order; stop and report if a check fails.
    or is blocked by existing tickets, record the link the way this project
    does (`blocked` label, "depends on #N" in the body, tracker link type) —
    that's the signal standup and sprint's ordering read to judge what's ready.
+   Include an effort level for /sprint, judged by the effort rule in
+   `~/.claude/skills/plan-sprint/SKILL.md`'s **Propose the next
+   iteration's scope** step (high or medium), with
+   its one-word why (`effort high (auth)`).
    File only on my explicit go-ahead.
 5. **File it:** create the tracker issue, or append to the backlog file in
-   the project's format. If repo files changed, commit them
+   the project's format. Store the effort level the way /plan-sprint's
+   **Open the next iteration** step does: an `[effort: <level>]` token on the ticket's line in a
+   file-based list, or an `effort: <level>` label on a card or issue
+   tracker (create the label if it doesn't exist — `gh issue create
+   --label` fails on a missing one). If repo files changed, commit them
    (`chore: add <TICKET-ID>`) and push — an unpushed backlog entry is
    invisible to everyone else. If the current branch isn't the integration
    branch, ask first: committing here drops the ticket into an unrelated PR.

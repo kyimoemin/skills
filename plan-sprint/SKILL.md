@@ -28,10 +28,23 @@ and stop.
    - Only pull items that are ready to start — unblocked, dependencies
      done, or depending only on tickets in this same proposal (an
      in-sprint chain constrains dispatch order, not membership).
-   - Present the proposed list with a one-line why per ticket, then wait for
+   - Give each ticket an effort level for /sprint, from its full body:
+     **high** when it touches something costly to get wrong — auth,
+     payments, migrations or data deletion, sync, security rules, release
+     config — or when its scope is large or unclear; **medium** otherwise,
+     docs-only tickets included. /sprint often runs unattended, so when in
+     doubt, high. A ticket already marked (by /add-ticket) keeps its level
+     unless its body now says otherwise; say so when you change one.
+   - Present the proposed list with a one-line why and the effort level per
+     ticket (`ABC-12 — token refresh · effort high (auth)`), then wait for
      my explicit go-ahead. Do not create anything yet.
 5. **Open the next iteration** as confirmed (adjusting for any changes I
-   asked for), carrying forward the step 2 tickets.
+   asked for), carrying forward the step 2 tickets. Store each ticket's
+   effort level where /sprint reads it: an `[effort: <level>]` token on the
+   ticket's line in a file-based list, or an `effort: <level>` label on a
+   card or issue tracker (create the label if it doesn't exist). When a
+   level changes, replace the old token or label — never leave both.
+   Carried tickets keep their level unless I changed it.
 6. **Commit** the roll to the current branch, if it changed repo files
    (`chore: close <iteration>, open <next>`). Do not push without go-ahead.
 7. **Report** one line: iteration closed, next opened, carried tickets — plus
