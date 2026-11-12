@@ -16,6 +16,7 @@ export interface TicketEvents {
   mergedInLog: boolean;
   pr?: number;
   reviewRounds?: number;
+  efforts?: string[]; // `NOTE: <ticket> effort <level>` per dispatch, in order
   headSha?: string;
   readyToMerge: boolean;
   mergeSkipped?: string; // /sprint auto: the merge phase skipped it, with why
@@ -64,6 +65,7 @@ export interface TicketState {
   detail?: string;
   pr?: PrInfo;
   reviewRounds?: number;
+  effort?: string; // newest dispatch's level, prefixed by earlier ones that differ: "medium→high"
   qa?: string;
   qaFile?: string;
 }
@@ -142,6 +144,8 @@ export function parseSprintLog(text: string): SprintParse {
   // A stop line only names what it waits on; the reason is the NOTE: the
   // run wrote just before it. Any event line in between makes it stale.
   let lastNote: string | undefined;
+  // which kind of dispatch each ticket's newest `dispatched` line was
+  const lastDispatch = new Map<string, "impl" | "qa" | "tracking">();
   // a line appended after RUN STOPPED means the run picked back up —
   // without this, answered questions and subset merges stay in the
   // Waiting-on-you panel forever
@@ -209,6 +213,17 @@ export function parseSprintLog(text: string): SprintParse {
       out.stopNote = lastNote;
       continue;
     }
+    if ((m = line.match(/^NOTE:\s*(\S+)\s+effort\s+(low|medium|high|xhigh|max)\b/i))) {
+      // /sprint logs each dispatch's effort right after its dispatched
+      // line. Bookkeeping, not a why: it never becomes the stop note.
+      // Only an implementer dispatch's level counts: QA checks and
+      // close-tracking run at their own levels and would misread as a change.
+      if (TICKET_RE.test(m[1]) && lastDispatch.get(m[1]) === "impl") {
+        (get(m[1]).efforts ??= []).push(m[2].toLowerCase());
+      }
+      lastNote = undefined;
+      continue;
+    }
     if ((m = line.match(/^NOTE:\s*(.+)$/))) {
       lastNote = m[1].trim();
       continue;
@@ -263,6 +278,9 @@ export function parseSprintLog(text: string): SprintParse {
     const [, id, rest] = idMatch;
     const t = get(id);
     resume();
+    if (/\bdispatched\b/i.test(rest)) {
+      lastDispatch.set(id, /^qa\b/i.test(rest) ? "qa" : /^\S*tracking\b/i.test(rest) ? "tracking" : "impl");
+    }
 
     // QA phase: `<ticket> qa dispatched` before its verifier runs, then
     // `<ticket> qa pass|fail|blocked|skipped, …` when it returns. Checked
@@ -413,6 +431,9 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
 
     if (ev?.pr) t.pr = inp.prs?.[ev.pr] ?? { number: ev.pr };
     t.reviewRounds = ev?.reviewRounds || undefined;
+    // consecutive repeats collapse: medium, high, high → "medium→high"
+    const efforts = ev?.efforts?.filter((e, i, a) => e !== a[i - 1]);
+    if (efforts?.length) t.effort = efforts.join("→");
     if (qa) {
       t.qaFile = qa.path;
       t.qa = qa.hint;

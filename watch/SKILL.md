@@ -65,7 +65,9 @@ QA lines the funnel continues → QA running → QA done (passed or skipped),
 with failed or blocked checks and the regression run's state hanging off
 it. It shows the
 `NOTE:` written just before `RUN STOPPED` as why it stopped. The
-ticket table links each PR and the QA file and shows the review-round
-count from the return line (the rounds themselves are comments on the PR),
+ticket table links each PR and the QA file and shows the effort level
+from /sprint's `NOTE: <ticket> effort <level>` lines (`medium→high` when a
+re-dispatch raised it) beside the review-round count from the return line
+(the rounds themselves are comments on the PR),
 and only the newest five decisions stay unfolded. Tests live
 next to the script (`bun test` in the scripts dir).

@@ -121,8 +121,8 @@ function waitingSection(state: DashState, runningNote: string): string[] {
 function ticketTable(state: DashState, emptyNote: string, heading = "## Tickets", linkBase = ""): string[] {
   const lines: string[] = [heading, ""];
   if (state.tickets.length) {
-    lines.push("| Ticket | State | PR | Rounds | QA | Detail |");
-    lines.push("|---|---|---|---|---|---|");
+    lines.push("| Ticket | State | PR | Effort | Rounds | QA | Detail |");
+    lines.push("|---|---|---|---|---|---|---|");
     // links are relative to the progress file, which sits in .sprint/
     // beside the qa files it points at
     const link = (text: string, href?: string) => (href ? `[${text}](${href})` : text);
@@ -134,7 +134,7 @@ function ticketTable(state: DashState, emptyNote: string, heading = "## Tickets"
       const rounds = t.reviewRounds ? String(t.reviewRounds) : "—";
       const qa = t.qa ? link(t.qa, t.qaFile && linkBase + basename(t.qaFile)) : "—";
       lines.push(
-        `| \`${mdCell(t.id)}\` | ${badge(t.state)} | ${pr} | ${rounds} | ${qa} | ${mdCell(t.detail ?? "")} |`,
+        `| \`${mdCell(t.id)}\` | ${badge(t.state)} | ${pr} | ${t.effort ?? "—"} | ${rounds} | ${qa} | ${mdCell(t.detail ?? "")} |`,
       );
     }
   } else {

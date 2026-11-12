@@ -43,6 +43,35 @@ describe("parseSprintLog", () => {
     expect(p.tickets["ABC-9"].reviewRounds).toBe(1);
   });
 
+  test("effort notes: implementer dispatches only, repeats collapse, never the stop note", () => {
+    const p = parseSprintLog(
+      [
+        "ORDER: CC-1, CC-2, CC-3",
+        "CC-1 dispatched",
+        "NOTE: CC-1 effort medium (planned)",
+        "CC-1 returned blocked: needs a decision",
+        "ANSWER: CC-1 go with option a",
+        "CC-1 re-dispatched",
+        "NOTE: CC-1 effort high (resume after block)",
+        "CC-2 dispatched",
+        "NOTE: CC-2 effort high (no planned level)",
+        "CC-2 re-dispatched",
+        "NOTE: CC-2 effort high (rebase)",
+        "CC-2 merged",
+        "CC-2 qa dispatched",
+        "NOTE: CC-2 effort medium (planned)",
+        "CC-2 close-tracking dispatched",
+        "NOTE: CC-2 effort medium (close-tracking)",
+        "RUN STOPPED awaiting: CC-1",
+      ].join("\n"),
+    );
+    expect(p.tickets["CC-1"].efforts).toEqual(["medium", "high"]);
+    expect(p.stopNote).toBeUndefined();
+    const s = buildSprintState({ sprint: p, sprintId: "s", qaSignals: [], now: new Date(0) });
+    const by = Object.fromEntries(s.tickets.map((t) => [t.id, t.effort]));
+    expect(by).toEqual({ "CC-1": "medium→high", "CC-2": "high", "CC-3": undefined });
+  });
+
   test("parked with dependency, answers, merged", () => {
     const p = parseSprintLog(
       "T-2 parked, depends on T-1\nANSWER: T-1 use jwt\nT-1 dispatched\nT-1 merged\n",
