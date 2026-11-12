@@ -20,6 +20,7 @@ export interface TicketEvents {
   readyToMerge: boolean;
   mergeSkipped?: string; // /sprint auto: the merge phase skipped it, with why
   qaRunning?: boolean; // `<ticket> qa dispatched` with no qa result line after it yet
+  qaSoloWait?: string; // `<ticket> qa solo-wait: <reason>` with no rerun dispatched yet
   qaResult?: "pass" | "fail" | "blocked" | "skipped"; // the newest `<ticket> qa <verdict>` line
   answers: string[];
 }
@@ -267,10 +268,20 @@ export function parseSprintLog(text: string): SprintParse {
     // `<ticket> qa pass|fail|blocked|skipped, …` when it returns. Checked
     // before the dispatch rule below, which would read "qa" as a qualifier
     // and put a merged ticket back to work.
+    // `<ticket> qa solo-wait: <reason>`: a lane verifier returned before
+    // running anything because the check must run alone. Not a result —
+    // the ticket waits for its alone rerun, which logs its own dispatch.
+    if ((m = rest.match(/^qa\s+solo-wait\b:?\s*(.*)$/i))) {
+      out.qaPhase = true;
+      t.qaRunning = false;
+      t.qaSoloWait = m[1].trim() || "must run alone";
+      continue;
+    }
     if ((m = rest.match(/^qa\s+(dispatched|pass|fail|blocked|skipped)\b/i))) {
       out.qaPhase = true;
       const verdict = m[1].toLowerCase();
       t.qaRunning = verdict === "dispatched";
+      t.qaSoloWait = undefined;
       // a rerun clears the old verdict; its own result line sets the new one
       t.qaResult = verdict === "dispatched" ? undefined : (verdict as TicketEvents["qaResult"]);
       continue;
@@ -421,6 +432,9 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
       // a rerun outranks an older results file still on disk
       t.state = "qa-running";
       t.detail = "QA check running";
+    } else if (merged && ev?.qaSoloWait !== undefined && !inp.runComplete) {
+      t.state = "qa-waiting";
+      t.detail = `QA waiting to run alone: ${ev.qaSoloWait}`;
     } else if (merged && verdict === "fail") {
       t.state = "qa-fail";
       t.detail = "merged, QA failed — bugs filed per fold/backlog choice";

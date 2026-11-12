@@ -97,12 +97,13 @@ highest-numbered one:
   them is an interrupted ticket, handled the same way — and for each
   interrupted ticket establish the real state yourself with `git` and `gh` —
   does the branch exist, how old is its last commit, is there a PR and in
-  what state. You have both tools; no subagent needs to run to find this
-  out. Report that alongside what the log says, then ask me, per interrupted
+  what state, and whether a worktree holds uncommitted work on it (the
+  check in per-ticket step 2). You have both tools; no subagent needs to
+  run to find this out. Report that alongside what the log says, then ask me, per interrupted
   ticket, whether to continue on the existing branch or start it fresh.
   Dispatch only after I answer, and carry the answer in the dispatch prompt
   as `resume: continue on <branch>` or `resume: start fresh, <branch> is
-  abandoned`. Without that line the implementer will block on the work it
+  abandoned`, plus step 2's uncommitted-work clause when it applies. Without that line the implementer will block on the work it
   finds — correct behaviour on a normal dispatch, and an infinite loop on a
   resume. Skip the tickets the log records as finalized or merged, and never
   reconstruct half-finished work yourself. A ticket logged `merged` with no
@@ -153,7 +154,7 @@ Use this format, so any later run can replay a log it didn't write:
 
 ```
 # sprint 4 — checkout hardening
-ORDER: ABC-12, ABC-15, ABC-9
+ORDER: ABC-12, ABC-15, ABC-9, ABC-20
 WAVE: ABC-12 ABC-15
 ABC-12 dispatched
 ABC-15 dispatched
@@ -170,8 +171,10 @@ ABC-12 merged, PR #204, squashed to e7b3f02, branch deleted
 
 Replayed, that says ABC-12 is merged, ABC-9 is finalized and awaiting my
 merge decision, and ABC-15 is parked on a question only I can answer.
-ABC-9 depends on ABC-12, so it took ABC-12's slot the moment ABC-12
-returned, while ABC-15 was still running.
+ABC-9 and ABC-12 both add a migration, so ABC-9 was held apart and took
+ABC-12's slot the moment ABC-12 returned, while ABC-15 was still running.
+ABC-20 depends on ABC-12, so it waited for ABC-12's merge, and it
+dispatches once ABC-12's tracking close lands.
 
 **Three of those lines are read strictly** — they are what the progress file
 derives ticket state from, and a line it can't read leaves a finished ticket
@@ -203,14 +206,18 @@ not continue past that ticket, `awaiting: <tickets>` when everything
 runnable finished and only parked tickets remain. A log whose last line is
 neither `RUN COMPLETE` nor `RUN STOPPED` was interrupted mid-ticket.
 
-A ticket whose last line is `parked` is waiting on my answer, not
-abandoned. Once I answer (in-session, or "merge all" after a stop), keep
+A ticket whose last line is `parked` is waiting on my answer — or, for
+`parked, depends on <id>`, on that ticket's merge — not abandoned. Once I answer (in-session, or "merge all" after a stop), keep
 appending to the same log. If my answer resolves a blocked ticket's
 question, append it as `ANSWER: <ticket> <answer>` before re-dispatching —
 the re-dispatch carries it (step 2); without it the implementer hits the
-same ambiguity and blocks again. If a replay finds every ticket
-finalized or merged and none interrupted, nothing is wrong — the run is
-awaiting my merge decision; report the open PRs and wait.
+same ambiguity and blocks again. If the ticket already has a branch, the
+re-dispatch also carries `resume: continue on <branch>` — or `start
+fresh` if my answer says so — since without it the implementer blocks on
+its own earlier work. If a replay finds every ticket
+finalized, merged, or never dispatched because it waits on an unmerged
+dependency, and none interrupted, nothing is wrong — the run is awaiting
+my merge decision; report the open PRs, and what waits on each, and wait.
 
 A logged card column is where the implementer left the card, not where it
 is now — when you need the current column, read it from the tracker.
@@ -342,7 +349,10 @@ qa-verifier per merged ticket + regression run"]]
     qa --> close[["close-tracking dispatch
 card moves to done, + approved prune cuts
 + follow-ups and QA bugs filed"]]
-    close --> all{"every named ticket merged,
+    close --> unblk{"these merges made
+dependents ready?"}
+    unblk -- "yes, once tracking landed" --> wave
+    unblk -- "no" --> all{"every named ticket merged,
 none parked, no tracking PR open?"}
     all -- "no" --> stop
     all -- "yes" --> prune{"docs grew past the
@@ -361,8 +371,18 @@ writes .sprint/prune-run-log-name.md"]]
 Work through the tickets in WAVES. Partition the ordered list using the
 dependency information you already have (the order you planned, the
 tracker's blocker links): a ticket lands in the earliest wave after every
-ticket it depends on has returned `complete`; tickets with no dependency
-edge between them may share a wave and run in parallel. Two things force
+ticket it depends on is `merged` — not just `complete`, because an
+implementer branches off the base, and an unmerged dependency's code isn't
+there. Tickets with no dependency edge between them may share a wave and
+run in parallel. A dependent of a ticket that is complete but unmerged
+waits for the merge phase: after it, those dependents form the next waves
+(see **Merge phase**). A ticket I named whose dependency is outside this
+run and not merged can never become ready in it: when planning, append
+`<ticket> parked, depends on <dependency>` and report it with the parked
+tickets, so the run stops on it rather than ending without it. (`all`,
+and `auto` without ids, already leave such tickets out as skipped.) A
+ticket parked on a dependency needs no `ANSWER:` — it is ready again once
+that dependency merges. Two things force
 tickets apart even without a dependency link:
 
 - tickets that will edit the same shared file off the same base — every
@@ -378,7 +398,7 @@ tickets apart even without a dependency link:
 Never hold a ready ticket back to a later wave or pass for ordering
 preference ("last", "after the chain") — the order of the ids I name is not
 a dependency; only `serial` (below) makes it binding. A ticket is ready once every ticket
-it depends on has returned `complete` and the separation rules above don't
+it depends on is `merged` and the separation rules above don't
 hold it apart from a running one; a ready ticket takes the first free slot.
 Fixes to the test harness or a
 known flake go first: every other implementer pays for the flake until they
@@ -386,12 +406,16 @@ land.
 
 If the word `serial` appears in the arguments (`/sprint serial ABC-1
 ABC-2`, `/sprint serial all`), there is one slot and every wave is exactly
-one ticket — strict one-at-a-time in the given order, no exceptions. The flag also binds any
+one ticket — strict one-at-a-time in the given order, no exceptions. A
+ticket whose dependency awaits its merge holds the line: nothing later
+passes it, and the run stops there for my merge word (`auto` merges and
+goes on). The flag also binds any
 resume of that run: record it by appending ` (serial)` to the `ORDER:`
 line, and honor it on replay.
 
-Run at most 3 implementers at once — three slots. A wider wave dispatches
-the first 3; the rest take slots as they free up (below). A repo can lower the cap with a `sprint: max <n> parallel` line
+Run at most 3 implementers at once — three slots. A wave wider than the
+cap dispatches as many as there are slots; the rest take slots as they
+free up (below). A repo can lower the cap with a `sprint: max <n> parallel` line
 in its `CLAUDE.md` or `AGENTS.md` (each implementer runs the test suite
 and spawns a reviewer, which a small machine feels); grep for it when
 planning, and treat `max 1 parallel` as `serial`. It never raises the cap
@@ -437,6 +461,19 @@ Per ticket:
    `ticket-reviewer` subagent per round, max 3 rounds, each round posted
    as a PR comment), and finalize. Nothing routes
    through you: you see only its final report.
+
+   **A dispatch onto an existing branch** — a replay's resume, a
+   re-dispatch after my answer or a failed review, a rebase — carries a
+   `resume:` line. Before sending it, find where the branch is checked
+   out (`git worktree list --porcelain` — an implementer's worktree, or
+   the main checkout after a dispatch without isolation) and whether
+   there is uncommitted work there (`git -C <path> status --short`).
+   That is an earlier
+   implementer's unsaved progress, and it lives only there: name the files
+   and ask me whether to carry it over or discard it, then add `, carry
+   over uncommitted work in <path>` or `, discard uncommitted work in
+   <path>` to the `resume:` line. Without that clause the implementer
+   blocks on the worktree rather than guess.
 3. **On return:** if status is `blocked` or `failed` → append the return
    line with the reason, append `<ticket> parked`, and continue with the
    next ticket that does not depend on it. Also park — a `<ticket> parked,
@@ -450,9 +487,10 @@ Per ticket:
    don't move the card, don't repeat the comment. Report the park to me in
    one line (ticket, reason) and skip steps 4–5 for this ticket — its
    return line is already logged; those steps are for `complete` returns.
-   When the last runnable ticket has returned and any ticket is parked, append
-   `RUN STOPPED awaiting: <tickets>` — the run needs my answers before
-   those can re-dispatch.
+   Outside `auto`, when the last runnable ticket has returned and any
+   ticket is parked, append `RUN STOPPED awaiting: <tickets>` — the run
+   needs my answers before those can re-dispatch. An `auto` run writes its
+   stop line only when the loop ends (see **Auto loop**).
 4. **Record:** append the return line to the run log — status, PR, review
    rounds, head SHA, card column, tracker location. If the report listed a
    cross-cutting decision, append it to the decisions log too. The round
@@ -472,8 +510,10 @@ summary, confirm no card is left in a state that contradicts its PR.
 
 When all tickets are done (or the run stopped): report a summary — one line
 per ticket with PR url, PR state, and the card's current column — which
-PRs now await merge approval, and every parked ticket with the question or
-reason it is waiting on (all blockers in one place, not drip-fed). If a QA
+PRs now await merge approval, which tickets wait on those merges before
+they can start (ticket, the PR it waits on), and every parked ticket with
+the question or reason it is waiting on (all blockers in one place, not
+drip-fed). If a QA
 phase ran, add its results: one line per ticket, the regression line, bugs
 filed, and "QA needs you" (blocked questions, unverifiable criteria). Flag any card sitting in done whose PR you
 haven't merged; that's a tracking error for me to resolve, not a finished
@@ -493,7 +533,8 @@ approved ticket in order:
    included) to the run log, then re-verify from the top. Never resolve
    conflicts yourself. For any
    other failing check, skip this ticket, report why, and continue with the
-   rest.
+   rest. Its dependents can't start without its merge: park each as in
+   per-ticket step 3 (`<ticket> parked, depends on <skipped-ticket>`).
 2. **Merge** with `gh pr merge` (repo's default strategy) and delete the
    ticket branch. A worktree-isolated ticket's branch is still checked out
    in its worktree, which stops git deleting it, so first find that
@@ -519,7 +560,9 @@ approved ticket in order:
    adds a migration (`gh pr view <n> --json files`), apply it now. Run it
    from the main checkout on the base, after pulling with `--ff-only`, using
    the repo's documented command and adding its non-interactive flag
-   (`--yes`). Log `MIGRATE: <ticket> applied` or
+   (`--yes`). An implementer may have left the checkout on its ticket
+   branch: if it's clean, put it on the base first; if it's dirty, don't
+   touch it — that is `MIGRATE: <ticket> failed: main checkout dirty`. Log `MIGRATE: <ticket> applied` or
    `MIGRATE: <ticket> failed: <reason>`. A failure doesn't unmerge
    anything, so treat it like a merge skip: notify me, carry on, and
    that ticket's QA check is `blocked`. Never run a reset or anything
@@ -543,6 +586,12 @@ approved ticket in order:
    this dispatch so they land in the same commit or tracking PR.
 5. **Report** one line: ticket, PR merged, tracking closed. When the close
    lands, append `<ids> tracking closed, <commit sha | tracking PR #n>`.
+6. **Keep going with what these merges unblocked.** My merge word covers
+   the tickets I named, so once their close-tracking has landed (any
+   tracking PR merged — on a file tracker, a dependent branched earlier
+   would collide with that edit), dispatch the run's tickets that just
+   became ready: new waves as usual, then stop again before their merge.
+   `auto` does this with its passes instead.
 
 **A tracking PR** is covered by the merge word that approved its tickets —
 it is the bookkeeping those merges made true, so it doesn't wait for a
@@ -562,7 +611,8 @@ and the docs of any `prune:` line are bookkeeping. Any other path is not —
 stop and report it.
 
 Append `RUN COMPLETE` only when no ticket in this run is still awaiting a
-merge decision, none is still parked, and no tracking PR is still open. If
+merge decision, none is still parked, none still waits on a dependency's
+merge, and no tracking PR is still open. If
 you merged a subset and the rest are open or parked, the run is not
 finished — leave the log unterminated so a later run picks those tickets
 up instead of starting fresh on top of them. Run the wrap-up below first;
@@ -675,7 +725,8 @@ to keep going without me. The loop:
 ```mermaid
 flowchart TB
     pick["resolve the ready set as all does,
-minus merged / parked / skipped"] --> any{anything ready?}
+minus merged / parked / skipped
+(a dependency park counts once its dependency merged)"] --> any{anything ready?}
     any -- "yes" --> pass["ORDER: ... (auto)
 waves, as usual"]
     pass --> merge["merge phase on every complete ticket
@@ -699,9 +750,13 @@ closes + files follow-ups and QA bugs"]]
   from `origin/<base>`) — the local copy is a pass behind. Resolve the ready
   set exactly as `all` does, and also leave out every ticket this log
   records as merged, parked or merge-skipped — don't rely on the tracker to
-  have caught up. With explicit
-  ticket ids, the run takes those, merges them, and ends — no further
-  passes.
+  have caught up. The one exception is a ticket whose last line is
+  `parked, depends on <id>` where `<id>` has since merged: it is ready
+  again, with no `ANSWER:` needed. With explicit
+  ticket ids, the run takes only those: a pass picks up the named tickets
+  that are ready, and the loop ends once every named ticket is merged,
+  parked or merge-skipped. A chain among them takes one pass per link,
+  since a dependent waits for its dependency's merge.
 - **The merge gate doesn't stop.** Once a pass's slots are all empty
   (every ticket it dispatched has returned),
   run the merge phase on every `complete` ticket, in order, exactly as

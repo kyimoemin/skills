@@ -471,6 +471,17 @@ describe("sprint view — QA phase in flight", () => {
     expect(s.qaRunning).toEqual(["CC-1"]);
   });
 
+  test("a solo-wait is waiting for its alone rerun, not running", () => {
+    const s = build(merged + "CC-1 qa dispatched\nCC-1 qa solo-wait: resets the shared account\n");
+    expect(s.tickets[0].state).toBe("qa-waiting");
+    expect(s.tickets[0].detail).toContain("resets the shared account");
+    expect(s.qaRunning).toBeUndefined();
+    const rerun = build(
+      merged + "CC-1 qa dispatched\nCC-1 qa solo-wait: x\nCC-1 qa dispatched\nCC-1 qa pass, .sprint/qa-CC-1.md\n",
+    );
+    expect(rerun.tickets[0].state).toBe("qa-pass");
+  });
+
   test("a qa result line ends the running state and sets the verdict", () => {
     const s = build(merged + "CC-1 qa dispatched\nCC-1 qa pass, .sprint/qa-CC-1.md\n");
     expect(s.tickets[0].state).toBe("qa-pass");

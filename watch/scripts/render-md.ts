@@ -89,6 +89,7 @@ const STATE_BADGE: Record<string, string> = {
   "qa-fail": "🔴 qa-fail",
   "in-progress": "🔵 in-progress",
   "qa-running": "🔵 qa-running",
+  "qa-waiting": "⏳ qa-waiting",
   pending: "⚪ pending",
 };
 const badge = (state: string): string => STATE_BADGE[state] ?? `⚪ ${state}`;
@@ -187,7 +188,8 @@ export function funnel(state: DashState) {
     state.tickets.filter((t) => names.some((n) => t.state === n || t.state.startsWith(n)));
   const working = inState("in-progress");
   const ready = inState("ready-to-merge");
-  const awaitingQa = inState("merged");
+  // qa-waiting: merged, its check deferred until it can run alone
+  const awaitingQa = inState("merged", "qa-waiting");
   const qaRunning = inState("qa-running");
   const qaDone = inState("qa-pass", "qa-skipped");
   const qaStuck = inState("qa-fail", "qa-blocked");

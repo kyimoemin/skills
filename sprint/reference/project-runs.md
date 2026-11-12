@@ -29,21 +29,22 @@ repo, with these changes:
   that repo's tickets out, list them as skipped (`owned by
   <repo>/.sprint/<log>`), and tell me. It's my call whether to finish that
   run in its repo or tell you it's abandoned.
-- **Dependencies across repos need `merged`, not `complete`.** A ticket
-  that waits on another repo builds against that repo's base branch (its
-  mock server, its API reference), so an open PR upstream doesn't help it.
-  Before
-  dispatching the dependent ticket, put the upstream repo's main checkout
-  on the merged PR's base branch (`gh pr view <n> --json baseRefName`,
-  never the repo default) and bring it up to date: `git -C <repo> checkout
-  <base>`, then `git -C <repo> pull --ff-only`. Do this only if that
-  checkout is clean; if it isn't, stop and tell me. Dependencies inside one
-  repo are unchanged.
-- **Manual mode keeps going after the merge word.** A ticket held on a
-  dependency in another repo can't start until I say merge. My merge word
-  covers the batch I named, so after the merge phase continue with the
-  tickets it unblocked: new waves, then stop again before their merge as
-  usual. `auto` handles this with its passes already.
+- **Dependencies across repos read the upstream checkout.** As in one
+  repo, a dependent waits for its dependency's merge (SKILL.md's waves). A
+  ticket that waits on another repo also builds against that repo's main
+  checkout (its mock server, its API reference), so that checkout must sit
+  on the base with the merge in it. Before dispatching the dependent ticket,
+  put the upstream repo's main checkout on the merged PR's base branch
+  (`gh pr view <n> --json baseRefName`, never the repo default) and bring
+  it up to date: `git -C <repo> checkout <base>`, then `git -C <repo> pull
+  --ff-only`. Do this only if that checkout is clean; if it isn't, stop and
+  tell me. While the dependent runs, that checkout must stay put, so the
+  upstream repo takes no implementer of its own: a dependent and a ticket
+  from its upstream repo never run at once. Once the dependent is ready,
+  give the upstream repo no new ticket: let its running one drain, then
+  dispatch the dependent, so a busy upstream repo can't starve it. Like
+  the hub drain below, that is a separation rule, not an ordering
+  preference.
 - **Waves: one ticket per repo, no worktree isolation.** The project folder
   isn't a repo, so `isolation: "worktree"` has nothing to isolate from.
   Each implementer works in its repo's main checkout, so at most one
@@ -59,7 +60,7 @@ repo, with these changes:
   freed slots, let the running tickets drain, then dispatch it with every
   slot empty and refill nothing while it runs. That drain is a separation
   rule, not an ordering preference. The other repos' tickets run in
-  parallel with each other. An implementer leaves its checkout on its
+  parallel with each other, apart from the upstream rule above. An implementer leaves its checkout on its
   ticket branch, so after every hub ticket returns — before any slot
   refills — put the hub's main checkout back
   on the base its PRs target (`git -C <hub> checkout <base>`, from
