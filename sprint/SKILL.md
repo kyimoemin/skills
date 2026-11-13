@@ -280,8 +280,14 @@ the order, from the same place you read the iteration's tickets — don't
 read the ticket body for it. Then:
 
 - **Implementer, first dispatch:** the ticket's planned level.
-- **Always high:** a resume after a block, a rebase, and a re-dispatch
-  after a failed or 3-round review, whatever the planned level.
+- **Re-dispatch at high**, whatever the planned level: a resume whose
+  `ANSWER:` changes scope or settles an ambiguity in the criteria, and a
+  re-dispatch after a failed or 3-round review.
+- **Re-dispatch at the planned level:** a rebase, a replay's resume of
+  interrupted work, and a resume whose `ANSWER:` only grants permission to
+  go ahead. Its reviewers still run at
+  high, which is what makes this safe. When an answer could be read
+  either way, use high.
 - **QA ticket check:** the ticket's planned level. **Regression run** and
   **close-tracking:** medium. **Prune proposal:** low — it only proposes
   cuts, and nothing is cut until I approve them.
@@ -290,13 +296,19 @@ read the ticket body for it. Then:
   judge a level yourself — /plan-sprint and /add-ticket own that. A ticket
   carrying two levels counts as high.
 
-The model stays whatever the agent file sets; this sets effort only. Put
-the level in the implementer's prompt as `effort: <level>` too, so it can
-spawn its reviewers to match. Log the choice right after the `dispatched`
-line, as `NOTE: <ticket> effort <level> (<source>)`, for example
+The model stays whatever the agent file sets; this sets effort only. The
+implementer runs its reviewers at high regardless of its own level. Log
+the choice right after the `dispatched` line, as
+`NOTE: <ticket> effort <level> (<source>)`, for example
 `NOTE: CC-366 effort medium (planned)` or
-`NOTE: CC-370 effort high (no planned level)`, so a later run can
-compare effort against review rounds and run time.
+`NOTE: CC-370 effort high (no planned level)`.
+
+When an implementer returns, log its cost from the completion notice right
+after the `returned` line, one per dispatch:
+`NOTE: <ticket> cost <tokens>k tokens, <minutes> min`, for example
+`NOTE: CC-355 cost 189k tokens, 21 min` — tokens rounded to thousands,
+minutes to whole minutes. Together with the effort notes and review rounds, this lets a
+later run see whether effort or scope drives the cost.
 
 ## Progress file
 
