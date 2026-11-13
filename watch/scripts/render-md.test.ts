@@ -85,8 +85,8 @@ describe("renderMarkdown — sprint view", () => {
         now: NOW,
       }),
     );
-    expect(out).toContain("| Ticket | State | PR | Effort | Rounds | QA | Detail |");
-    expect(out).toContain("| `CC-7` | 🔵 in-progress | — | medium | — |");
+    expect(out).toContain("| Ticket | State | PR | Effort | Rounds | Cost | QA | Detail |");
+    expect(out).toContain("| `CC-7` | 🔵 in-progress | — | medium | — | — |");
   });
 
   test("re-runs are labelled by run number", () => {
@@ -264,7 +264,7 @@ describe("readability", () => {
     const state = sprintState("ORDER: A-1\nA-1 dispatched\nA-1 returned complete, PR #7, 2 review rounds\nA-1 merged\n");
     state.repoUrl = "https://github.com/o/r";
     expect(renderMarkdown(state)).toContain(
-      "| `A-1` | 🟢 qa-pass | [#7](https://github.com/o/r/pull/7) | — | 2 | [pass](qa-A-1.md) |",
+      "| `A-1` | 🟢 qa-pass | [#7](https://github.com/o/r/pull/7) | — | 2 | — | [pass](qa-A-1.md) |",
     );
   });
 
@@ -470,8 +470,8 @@ describe("QA stages in the funnel", () => {
 
   test("a skipped ticket reads skipped in the table, not ran", () => {
     const md = renderMarkdown(stateOf(LOG, [{ ticket: "CC-1", path: ".sprint/qa-CC-1.md", hint: "skipped" }]));
-    expect(md).toContain("| `CC-1` | ⏭️ qa-skipped | — | — | — | [skipped](qa-CC-1.md) |");
-    expect(md).toContain("| `CC-4` | 🟠 qa-blocked | — | — | — | blocked |");
+    expect(md).toContain("| `CC-1` | ⏭️ qa-skipped | — | — | — | — | [skipped](qa-CC-1.md) |");
+    expect(md).toContain("| `CC-4` | 🟠 qa-blocked | — | — | — | — | blocked |");
   });
 
   test("the project page's Merged column still counts every merged ticket", () => {

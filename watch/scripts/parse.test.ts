@@ -72,6 +72,42 @@ describe("parseSprintLog", () => {
     expect(by).toEqual({ "CC-1": "medium→high", "CC-2": "high", "CC-3": undefined });
   });
 
+  test("cost notes are never the stop note", () => {
+    const p = parseSprintLog(
+      [
+        "CC-1 dispatched",
+        "NOTE: CC-1 effort medium (planned)",
+        "CC-1 returned blocked: needs a decision",
+        "NOTE: CC-1 cost 189k tokens, 21 min",
+        "RUN STOPPED awaiting: CC-1",
+      ].join("\n"),
+    );
+    expect(p.stopNote).toBeUndefined();
+    expect(p.tickets["CC-1"].efforts).toEqual(["medium"]);
+  });
+
+  test("cost notes sum across a ticket's dispatches", () => {
+    const p = parseSprintLog(
+      [
+        "ORDER: CC-1, CC-2",
+        "CC-1 dispatched",
+        "CC-1 returned blocked: needs a decision",
+        "NOTE: CC-1 cost 113k tokens, 8 min",
+        "CC-1 re-dispatched",
+        "CC-1 returned complete, PR #5, 1 review round, head abc1234, ready-to-merge",
+        "NOTE: CC-1 cost 76k tokens, 5 min",
+        "NOTE: CC-2 cost lots",
+      ].join("\n"),
+    );
+    expect(p.tickets["CC-1"].costs).toEqual([
+      { tokensK: 113, minutes: 8 },
+      { tokensK: 76, minutes: 5 },
+    ]);
+    const s = buildSprintState({ sprint: p, sprintId: "s", qaSignals: [], now: new Date(0) });
+    const by = Object.fromEntries(s.tickets.map((t) => [t.id, t.cost]));
+    expect(by).toEqual({ "CC-1": "189k · 13 min", "CC-2": undefined });
+  });
+
   test("parked with dependency, answers, merged", () => {
     const p = parseSprintLog(
       "T-2 parked, depends on T-1\nANSWER: T-1 use jwt\nT-1 dispatched\nT-1 merged\n",

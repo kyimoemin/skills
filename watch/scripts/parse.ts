@@ -17,6 +17,7 @@ export interface TicketEvents {
   pr?: number;
   reviewRounds?: number;
   efforts?: string[]; // `NOTE: <ticket> effort <level>` per dispatch, in order
+  costs?: { tokensK: number; minutes: number }[]; // `NOTE: <ticket> cost <n>k tokens, <m> min` per return
   headSha?: string;
   readyToMerge: boolean;
   mergeSkipped?: string; // /sprint auto: the merge phase skipped it, with why
@@ -66,6 +67,7 @@ export interface TicketState {
   pr?: PrInfo;
   reviewRounds?: number;
   effort?: string; // newest dispatch's level, prefixed by earlier ones that differ: "medium→high"
+  cost?: string; // summed over the ticket's implementer returns: "302k · 29 min"
   qa?: string;
   qaFile?: string;
 }
@@ -220,6 +222,15 @@ export function parseSprintLog(text: string): SprintParse {
       // close-tracking run at their own levels and would misread as a change.
       if (TICKET_RE.test(m[1]) && lastDispatch.get(m[1]) === "impl") {
         (get(m[1]).efforts ??= []).push(m[2].toLowerCase());
+      }
+      lastNote = undefined;
+      continue;
+    }
+    if ((m = line.match(/^NOTE:\s*(\S+)\s+cost\s+(\d+(?:\.\d+)?)k\s+tokens?,\s*(\d+(?:\.\d+)?)\s*min\b/i))) {
+      // /sprint logs each implementer's cost right after its returned
+      // line. Bookkeeping too: it never becomes the stop note.
+      if (TICKET_RE.test(m[1])) {
+        (get(m[1]).costs ??= []).push({ tokensK: Number(m[2]), minutes: Number(m[3]) });
       }
       lastNote = undefined;
       continue;
@@ -436,6 +447,11 @@ function deriveTickets(inp: DeriveInputs): TicketState[] {
     // consecutive repeats collapse: medium, high, high → "medium→high"
     const efforts = ev?.efforts?.filter((e, i, a) => e !== a[i - 1]);
     if (efforts?.length) t.effort = efforts.join("→");
+    if (ev?.costs?.length) {
+      const k = ev.costs.reduce((a, c) => a + c.tokensK, 0);
+      const min = ev.costs.reduce((a, c) => a + c.minutes, 0);
+      t.cost = `${Math.round(k)}k · ${Math.round(min)} min`;
+    }
     if (qa) {
       t.qaFile = qa.path;
       t.qa = qa.hint;

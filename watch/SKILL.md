@@ -68,6 +68,7 @@ it. It shows the
 ticket table links each PR and the QA file and shows the effort level
 from /sprint's `NOTE: <ticket> effort <level>` lines (`medium→high` when a
 re-dispatch raised it) beside the review-round count from the return line
-(the rounds themselves are comments on the PR),
+(the rounds themselves are comments on the PR) and the cost summed from
+its `NOTE: <ticket> cost <n>k tokens, <m> min` lines,
 and only the newest five decisions stay unfolded. Tests live
 next to the script (`bun test` in the scripts dir).
