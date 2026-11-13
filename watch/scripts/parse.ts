@@ -340,9 +340,11 @@ export function parseSprintLog(text: string): SprintParse {
       if (/\bready-to-merge\b/i.test(tail)) t.readyToMerge = true;
       continue;
     }
-    if ((m = rest.match(/^parked\b(?:,?\s*depends\s+on\s+(\S+))?/))) {
+    if ((m = rest.match(/^parked\b(?:,?\s*depends\s+on\s+(\S+))?(?::\s*(.+))?/))) {
       t.parked = true;
       if (m[1]) t.dependsOn = m[1].replace(/[.,]$/, "");
+      // `<ticket> parked: <reason>` — e.g. a dependency's failed migration
+      if (m[2]) t.blockedReason = m[2].trim();
       continue;
     }
     // /sprint auto's merge phase: a failing check it can't rebase away.

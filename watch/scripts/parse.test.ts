@@ -612,3 +612,58 @@ describe("sprint view — QA verdicts", () => {
     expect(build(merged + "QA: regression dispatched\nRUN COMPLETE\n").regression).toBeUndefined();
   });
 });
+
+describe("dependency release (sprint merge phase step 6)", () => {
+  // An in-run dependent gets no line until it is released: once its
+  // dependency's merge phase has merged, it runs while that phase's QA
+  // is still going.
+  const LOG = `ORDER: CC-385, CC-383 (auto)
+WAVE: CC-385
+CC-385 dispatched
+CC-385 returned complete, PR #320, 1 review round, head a1b2c3d, ready-to-merge, tracker: docs/tickets/CC-385.md
+CC-385 merged, PR #320, squashed to e7b3f02, branch deleted
+CC-383 released, CC-385 merged
+WAVE: CC-383
+CC-383 dispatched
+CC-385 qa dispatched
+`;
+
+  test("the released line is trail; dispatch puts the ticket to work", () => {
+    const t = parseSprintLog(LOG).tickets["CC-383"];
+    expect(t.dispatched).toBe(true);
+    expect(t.parked).toBe(false);
+    expect(t.mergedInLog).toBeFalsy();
+    expect(parseSprintLog(LOG).tickets["CC-385"].mergedInLog).toBe(true);
+  });
+
+  test("the release is its own wave after the merge", () => {
+    expect(parseSprintLog(LOG).waves.at(-1)).toEqual(["CC-383"]);
+  });
+
+  test("the view shows the released ticket working, not waiting", () => {
+    // the next pass's ORDER: line lists it, already dispatched
+    const next = LOG + "CC-385 qa pass, .sprint/qa-CC-385.md\nORDER: CC-383 (auto)\n";
+    const view = buildSprintState({
+      sprint: parseSprintLog(next),
+      sprintId: "s",
+      qaSignals: [],
+      now: new Date("2026-11-13T12:00:00Z"),
+    });
+    const t = view.tickets.find((x) => x.id === "CC-383");
+    expect(t?.state).toBe("in-progress");
+    expect(t?.detail).toBeUndefined();
+  });
+
+  test("a park for a failed migration keeps its reason", () => {
+    const log = "ORDER: CC-1, CC-2 (auto)\nCC-1 merged, PR #1, squashed to abc1234, branch deleted\nMIGRATE: CC-1 failed: db unreachable\nCC-2 parked: CC-1 migration failed\n";
+    const t = parseSprintLog(log).tickets["CC-2"];
+    expect(t.parked).toBe(true);
+    expect(t.dependsOn).toBeUndefined();
+    expect(t.blockedReason).toBe("CC-1 migration failed");
+  });
+
+  test("a released line with no dispatch yet doesn't read as working", () => {
+    const cut = LOG.slice(0, LOG.indexOf("WAVE: CC-383"));
+    expect(parseSprintLog(cut).tickets["CC-383"]?.dispatched ?? false).toBe(false);
+  });
+});

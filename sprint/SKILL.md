@@ -183,7 +183,9 @@ merge decision, and ABC-15 is parked on a question only I can answer.
 ABC-9 and ABC-12 both add a migration, so ABC-9 was held apart and took
 ABC-12's slot the moment ABC-12 returned, while ABC-15 was still running.
 ABC-20 depends on ABC-12, so it waited for ABC-12's merge, and it
-dispatches once ABC-12's tracking close lands.
+dispatches as soon as that merge phase's merges are done — alongside its
+QA, without waiting for the close (merge phase step 6; Trello has no
+shared tracker file to wait for).
 
 **Three of those lines are read strictly** — they are what the progress file
 derives ticket state from, and a line it can't read leaves a finished ticket
@@ -353,17 +355,18 @@ resume: rebase — it re-reviews, new SHA"]
     redisp --> verify
     verify -- "ok" --> merged["gh pr merge, delete branch
 apply its migration if it adds one"]
+    merged -. "after the last merge: dependents
+released now, alongside QA (step 6)" .-> wave
     merged --> qa[["QA phase, if the repo opts in
 qa-verifier per merged ticket + regression run"]]
     qa --> close[["close-tracking dispatch
 card moves to done, + approved prune cuts
 + follow-ups and QA bugs filed"]]
-    close --> unblk{"these merges made
-dependents ready?"}
-    unblk -- "yes, once tracking landed" --> wave
-    unblk -- "no" --> all{"every named ticket merged,
-none parked, no tracking PR open?"}
-    all -- "no" --> stop
+    close --> all{"every named ticket merged,
+none parked or running, no tracking PR open?"}
+    all -- "no" --> relwait["wait for released tickets
+to return (never merge them here)"]
+    relwait --> stop
     all -- "yes" --> prune{"docs grew past the
 prune threshold?"}
     prune -- "yes" --> prunedisp[["prune-proposal dispatch
@@ -384,8 +387,9 @@ ticket it depends on is `merged` — not just `complete`, because an
 implementer branches off the base, and an unmerged dependency's code isn't
 there. Tickets with no dependency edge between them may share a wave and
 run in parallel. A dependent of a ticket that is complete but unmerged
-waits for the merge phase: after it, those dependents form the next waves
-(see **Merge phase**). A ticket I named whose dependency is outside this
+waits for that ticket's merge, and is released as soon as its merge
+phase's merges are done — not after the QA phase or the close (see
+**Merge phase** step 6). A ticket I named whose dependency is outside this
 run and not merged can never become ready in it: when planning, append
 `<ticket> parked, depends on <dependency>` and report it with the parked
 tickets, so the run stops on it rather than ending without it. (`all`,
@@ -443,10 +447,13 @@ kept — and apply step 3's parking to its dependents. Then fill its slot
 right away with the next ticket that is ready now (as defined above). Log it as its own
 `WAVE: <id>` line, then `dispatched`. If nothing is ready, leave the slot
 empty until the next return. The pass ends, and the merge phase starts,
-once every slot is empty. Merges still happen only in the
-merge phase, so `main` never moves under a running wave; branch collisions
-surface, if at all, as ordinary PR conflicts the merge phase already
-handles.
+once every slot is empty — and, for a pass of released tickets, once
+the merge phase that released them has finished its QA and close
+(merge phase step 6). Merges still happen only in the
+merge phase, so `main` never moves under a running wave — except the
+bookkeeping that lands under a released ticket (merge phase step 6: the
+close and QA's bug filing). Branch collisions surface, if at all, as
+ordinary PR conflicts the merge phase already handles.
 
 Per ticket:
 
@@ -517,7 +524,8 @@ confirms the card move.
 any point; what survives is the tracker and the run log. Before the final
 summary, confirm no card is left in a state that contradicts its PR.
 
-When all tickets are done (or the run stopped): report a summary — one line
+When all tickets are done (or the run stopped), and no implementer is
+still running (a ticket merge step 6 dispatched included): report a summary — one line
 per ticket with PR url, PR state, and the card's current column — which
 PRs now await merge approval, which tickets wait on those merges before
 they can start (ticket, the PR it waits on), and every parked ticket with
@@ -578,8 +586,9 @@ approved ticket in order:
    that drops data.
 3. **QA phase**, when the repo opts in. It comes after the last merge and
    before the close-tracking dispatch (on a card tracker, before the last
-   ticket's dispatch), so the QA bugs ride on that dispatch. See
-   **QA phase** below.
+   ticket's dispatch), so the QA bugs ride on that dispatch. Step 6's
+   release happens first, right after the last merge. See **QA phase**
+   below.
 4. **Close tracking:** dispatch a fresh `ticket-implementer` with a
    `close-tracking` prompt — just the ticket ids, PRs, repo path, and the
    tracker location from the run log. It needs nothing else; don't resend
@@ -592,15 +601,70 @@ approved ticket in order:
    recorded no tracker, skip this dispatch and note it in the report —
    there is nothing to close. If approved prune cuts are waiting
    (`.sprint/prune-approved`, see the wrap-up), add a `prune:` line to
-   this dispatch so they land in the same commit or tracking PR.
+   this dispatch so they land in the same commit or tracking PR. The close
+   always runs in the main checkout, without worktree isolation, even
+   while released tickets (step 6) run in their worktrees. It commits on
+   the base, which a worktree can't check out.
 5. **Report** one line: ticket, PR merged, tracking closed. When the close
    lands, append `<ids> tracking closed, <commit sha | tracking PR #n>`.
-6. **Keep going with what these merges unblocked.** My merge word covers
-   the tickets I named, so once their close-tracking has landed (any
-   tracking PR merged — on a file tracker, a dependent branched earlier
-   would collide with that edit), dispatch the run's tickets that just
-   became ready: new waves as usual, then stop again before their merge.
-   `auto` does this with its passes instead.
+6. **Release what these merges unblocked, right away.** This step runs
+   before step 3: once this phase's last merge is logged, plus its
+   `MIGRATE:` line if it adds a migration, the run tickets held only for
+   a dependency this phase merged become ready, as defined in
+   **Execution: waves**, separation rules included. They don't wait for
+   the QA phase or the close-tracking dispatch: neither changes the code
+   they branch from, QA is checking other tickets, and a QA failure in
+   their dependency becomes a bug ticket either way. Some cases keep the
+   old wait, where these dependents start only once the close has landed
+   (any tracking PR merged), after QA:
+   - **A project run** (`reference/project-runs.md`): its implementers
+     work in each repo's main checkout, which QA and the close use.
+   - **A shared board file:** the dependent's tracking lives in the same
+     board FILE as a ticket this phase merged (the separation rule in
+     **Execution: waves**). Marking it in progress would edit the file
+     the close edits.
+   - **A required bump:** the repo's `CLAUDE.md` or `AGENTS.md` requires
+     every PR to bump a version or changelog. The close carries that bump
+     too, so every released PR would conflict and pay a rebase plus a
+     re-review.
+   - **A failed migration:** a dependency whose `MIGRATE:` line failed
+     releases nothing. Park each of its dependents as `<ticket> parked:
+     <dependency> migration failed`, a question for me, not a dependency
+     park.
+
+   A dependent that keeps the old wait is not released: it gets no
+   `released` line, and none of the bullets below apply to it. Outside
+   `auto`, once the close lands, dispatch it as a new wave under the usual
+   isolation rules: a worktree in a single-repo run, none in a project
+   run. Then stop again before its merge. In `auto`, the next pass's
+   pick-up takes it.
+
+   For each released ticket:
+   - log `<ticket> released, <dependency> merged`, then `WAVE: <ticket>`
+     and `dispatched` as usual. From its `dispatched` line on, its state
+     is its last line like any other ticket. A `released` line with no
+     `dispatched` after it was interrupted before the dispatch: dispatch
+     it;
+   - dispatch it in a worktree, always — the main checkout belongs to QA
+     and the close. Add `released: install your own dependencies, don't
+     link the main checkout's` to the prompt, since QA pulls and builds
+     there while it runs;
+   - when the repo opts into QA, reserve QA's slots before releasing
+     anything, since release comes before the first verifier starts:
+     released implementers get the implementer cap (3, the repo's line,
+     or `<n>i`) minus QA's lane count (1 without lanes). One that doesn't
+     fit takes the next slot that frees, and once the QA phase ends the
+     whole cap is theirs. One still waiting when QA ends dispatches only
+     after the close has landed: until it is pushed, the close's commit
+     sits on the local base, and an implementer that sees the local base
+     ahead of `origin` blocks. With `serial` or a cap of 1, nothing is
+     released until the QA phase ends, so the same rule applies;
+   - never merge it inside the phase that released it, even if it returns
+     while QA or the close is still running: the base must not move under
+     a running check. It merges on my next merge word, or in `auto` at
+     the next pass's merge gate (see **Auto loop**). Outside `auto`, the
+     summary and STOP wait until every released ticket has returned, so
+     the summary lists its PR.
 
 **A tracking PR** is covered by the merge word that approved its tickets —
 it is the bookkeeping those merges made true, so it doesn't wait for a
@@ -621,7 +685,8 @@ stop and report it.
 
 Append `RUN COMPLETE` only when no ticket in this run is still awaiting a
 merge decision, none is still parked, none still waits on a dependency's
-merge, and no tracking PR is still open. If
+merge, none is still running (a released ticket can outlast its merge
+phase), and no tracking PR is still open. If
 you merged a subset and the rest are open or parked, the run is not
 finished — leave the log unterminated so a later run picks those tickets
 up instead of starting fresh on top of them. Run the wrap-up below first;
@@ -680,7 +745,10 @@ up to that many verifiers at once, one per lane; otherwise one at a time.
 A `<n>q` argument replaces that line's number for this run: hand it to
 phase.md as the cap.
 
-No implementer is running at this point, so the machine is free. One may
+No implementer from this pass is running at this point. A ticket released
+by merge step 6 may be. It works in a worktree, so the main checkout is
+still QA's alone, and step 6 reserved QA's lanes before releasing it, so
+implementers plus verifiers stay within the cap. An implementer may
 have left the main checkout on its ticket branch, so if it's clean, put it
 on the base and pull with `--ff-only` before the first verifier. If it's
 dirty, phase.md's stop applies: log each ticket `qa blocked` with that
@@ -740,11 +808,16 @@ minus merged / parked / skipped
 waves, as usual"]
     pass --> merge["merge phase on every complete ticket
 + its tracking PR, no word needed"]
+    merge -. "dependents of these merges:
+released now (merge step 6)" .-> rel["released tickets run
+alongside QA, join the next pass"]
+    rel -.-> pass
     merge --> qa[["QA phase, if the repo opts in"]]
     qa --> file[["close-tracking dispatch
 closes + files follow-ups and QA bugs"]]
     file --> pick
-    any -- "no" --> held{"parked or skipped?"}
+    any -- "no, and no released ticket
+running or complete-unmerged" --> held{"parked or skipped?"}
     held -- "yes" --> stopped(["RUN STOPPED awaiting + notify"])
     held -- "no" --> complete(["wrap-up, RUN COMPLETE + notify"])
 ```
@@ -754,20 +827,31 @@ closes + files follow-ups and QA bugs"]]
   last), then its waves. `RUN COMPLETE` comes only when the loop ends.
 - **Picking up:** a pass starts only after the previous pass's
   close-tracking has landed (tracking PR merged) — the bugs it filed exist
-  only from then. Then `git fetch` and read the tracker as the base branch
+  only from then. A released ticket runs ahead of that gate: merge step 6
+  starts it as soon as its dependency's merge phase has merged, so it is
+  already running when the pick-up comes. Its merge still waits behind the
+  gate, at the next pass's merge gate. Where step 6
+  keeps the old wait (a shared board file, a required bump, a project
+  run), it waits for this pick-up as before. Then `git fetch` and read the tracker as the base branch
   has it (pull the base in the main checkout if it is clean, else read it
   from `origin/<base>`) — the local copy is a pass behind. Resolve the ready
   set exactly as `all` does, and also leave out every ticket this log
-  records as merged, parked or merge-skipped — don't rely on the tracker to
-  have caught up. The one exception is a ticket whose last line is
+  records as merged, parked or merge-skipped, and every released ticket
+  still running or returned complete and unmerged — don't rely on the
+  tracker to have caught up. A released ticket that was parked or
+  merge-skipped since is handled like any other parked or skipped one.
+  The pass's `ORDER:` line lists the running and complete released
+  tickets first; don't dispatch them again. If nothing else is ready,
+  they alone are the pass. The one exception is a ticket whose last line is
   `parked, depends on <id>` where `<id>` has since merged: it is ready
-  again, with no `ANSWER:` needed. With explicit
+  again, with no `ANSWER:` needed (step 6 has normally released it already). With explicit
   ticket ids, the run takes only those: a pass picks up the named tickets
   that are ready, and the loop ends once every named ticket is merged,
   parked or merge-skipped. A chain among them takes one pass per link,
   since a dependent waits for its dependency's merge.
 - **The merge gate doesn't stop.** Once a pass's slots are all empty
-  (every ticket it dispatched has returned),
+  (every ticket it dispatched has returned, including the released ones
+  it carried in),
   run the merge phase on every `complete` ticket, in order, exactly as
   written — re-verify in full (CI green, mergeable, head SHA matches the
   log), conflicts go to the rebase dispatch, any other failing check skips
@@ -787,7 +871,12 @@ closes + files follow-ups and QA bugs"]]
   naming the repo, the ticket and the one-line reason (the PushNotification
   tool — load it via tool search if it is deferred; if unavailable, the
   report is enough), and keep going with everything
-  that doesn't depend on it. The loop stops when nothing is ready — then,
+  that doesn't depend on it. The loop stops when nothing is ready and no
+  released ticket is still running or returned complete and unmerged. A
+  tracking PR that won't verify is the exception: no pick-up and no merge
+  gate can follow it. There, wait for running released tickets to return,
+  then stop, listing the complete ones as waiting on that PR under its
+  `RUN STOPPED awaiting: tracking PR #<n>`. Then,
   if anything is parked or skipped, append `RUN STOPPED awaiting: <ids>`,
   report every question and skip in one place, plus every `proposed`
   follow-up filed this run for my triage, and notify me. Otherwise run the
@@ -796,7 +885,9 @@ closes + files follow-ups and QA bugs"]]
   answered tickets as the next pass and keep looping.
 - **A heavy context** is not a reason to push on. At a pass boundary (after
   its close-tracking, before the next pick-up), if your context has grown
-  past usefulness, append `RUN STOPPED awaiting: fresh session`, sync the
+  past usefulness, release nothing more and wait for any released ticket
+  still running to return, so the resume doesn't find it interrupted. Its
+  merge waits for the resumed loop's first merge gate. Then append `RUN STOPPED awaiting: fresh session`, sync the
   archive, and tell me to run `/sprint auto` in a new session.
 - **Resume:** a `/sprint auto` whose highest-numbered log carries `(auto)`
   on an `ORDER:` line and doesn't end in `RUN COMPLETE` resumes that log —
