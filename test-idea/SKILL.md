@@ -1,5 +1,5 @@
 ---
-description: Test a business or product idea against a panel of simulated customers (synthetic customer research) — builds 5 varied personas, interviews each in its own subagent so they can't anchor on each other, then reports objections, price signals, confusion, and what to verify with real people. Use when I ask to test, validate, or pressure-test an idea, pitch, or price with fake/test/simulated customers, or name /test-idea.
+description: Test a business or product idea against a panel of simulated customers (synthetic customer research) — builds 5 varied personas (10 on request), interviews each in its own subagent so they can't anchor on each other, then reports objections, price signals, confusion, and what to verify with real people. Use when I ask to test, validate, or pressure-test an idea, pitch, or price with fake/test/simulated customers, or name /test-idea.
 ---
 
 # Test an idea with simulated customers
@@ -29,7 +29,14 @@ location-neutral and say so in the report.
 
 ## 2. Build the panel
 
-Five personas, deliberately spread — not five versions of the ideal buyer:
+**Size.** 5 personas by default — one per slot below. If the user asks for
+10 (e.g. "10 customers", `/test-idea 10`), use two per slot that differ on
+purpose (age, income, location, heavy vs light user), so the second is a
+second opinion, not a copy. Cap at 10: more personas from one model mostly
+repeat the same objections, and each costs two agent turns. If they ask for
+more, say so and run 10.
+
+Personas are deliberately spread — not versions of the ideal buyer:
 
 | Slot | Who |
 |---|---|
@@ -41,8 +48,8 @@ Five personas, deliberately spread — not five versions of the ideal buyer:
 
 Each persona gets: name, age, location, job/situation, income band, **how they
 handle the problem today and what it costs them** (money or time), one thing
-they care about most, and one concrete reason they might say no. At least two
-personas should lean toward no. Show the panel to the user as a compact table,
+they care about most, and one concrete reason they might say no. At least
+two in five should lean toward no (four in a panel of 10). Show the panel to the user as a compact table,
 then carry on — don't wait for approval unless the brief was very thin.
 
 ## 3. Interview each persona — one subagent each
@@ -57,7 +64,7 @@ idea. No tools are needed; tell the agent to answer from the persona alone.
 Two rounds, so the problem questions are answered before the persona knows
 the idea exists (otherwise Part A answers bend toward the pitch):
 
-**Round 1** — dispatch all five in **one message** (parallel), with Part A only:
+**Round 1** — dispatch every persona in **one message** (parallel), with Part A only:
 
 > You are role-playing **<persona card>**. Stay in character. Answer as this
 > person really would — busy, self-interested, not polite for politeness' sake.
@@ -71,7 +78,7 @@ the idea exists (otherwise Part A answers bend toward the pitch):
 > 3. What have you tried that didn't work?
 > 4. How much does this problem actually bother you, 1–10, and why?
 
-**Round 2** — when all five have answered, SendMessage each the rest, again
+**Round 2** — when all have answered, SendMessage each the rest, again
 in one message:
 
 > Still in character. Here's a new product:
@@ -101,7 +108,7 @@ In chat, in this order:
 1. **One-line caveat** — simulated, finds weak spots, doesn't prove demand.
 2. **Panel results** — table: persona · verdict · price band (bargain →
    too expensive) · top objection.
-3. **Patterns** — what came up in 2+ interviews: shared objections, the
+3. **Patterns** — what came up in 2+ interviews (3+ in a panel of 10): shared objections, the
    alternative people are happy with, misunderstandings of the pitch
    (compare answers to Q5 with what the idea actually is).
 4. **Problem strength** — did Part A show the problem hurts, or is it a
