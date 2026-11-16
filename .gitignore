@@ -11,6 +11,7 @@
 !/watch/
 !/ui-verify/
 !/audit/
+!/test-idea/
 # Apple-shipped wallpapers: local test input only, not ours to publish.
 /ui-verify/fixtures/backdrop-busy.png
 /ui-verify/fixtures/backdrop-mid.png
