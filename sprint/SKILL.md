@@ -157,7 +157,7 @@ ticket, below), a ticket is dispatched, an
 implementer returns (status, PR, review rounds, head SHA, card column,
 tracker location), a ticket is merged, tracking is closed, the run stops.
 Plus every decisions-log entry (below). One line each — ticket id first
-(`DECISION:` lines start with their prefix instead), then what happened.
+(`DECISION:` and `TICKET:` lines start with their prefix instead), then what happened.
 No prose, no pasted reports.
 
 Use this format, so any later run can replay a log it didn't write:
@@ -205,8 +205,8 @@ rendered as still in review for the life of the run:
 - **ticket:** `TICKET: <ticket> <source> — <title>`. Every `ORDER:` line
   (each auto pass writes one) is followed, after any `CAPS:` or
   `PROJECT:` line, by one of these for each ticket on it that the log has
-  none for yet. The title and source are things you already found while
-  locating the ticket for ordering. `<source>` is one token: the
+  none for yet. Look the title up for it (step 1) even when ordering
+  didn't need it. `<source>` is one token: the
   card's URL, or the ticket's path from the repo root (a file board's
   ticket file, or the tracker file that holds its row), or `-` when there
   is nothing to link. The title is the ticket's own, on one line. The
@@ -486,9 +486,13 @@ Per ticket:
 
 1. **Locate the ticket** in the tracker: its id, where it lives (file
    path or card), its title, and — only when ordering needs them — the
-   status and blocker lines, grepped per the rule above (a file ticket's
-   title is its heading line; a tracker row's is its title cell; a card's
-   is its name). The `TICKET:` line written after `ORDER:` records them.
+   status and blocker lines, grepped per the rule above. For the title,
+   match only the ticket's own line, the one that starts with its id: a
+   file ticket's heading, a tracker row whose first cell is the id (other
+   rows and notes mention it too), or the card's name. Print the title
+   alone, never the whole row. With no line of its own, write no
+   `TICKET:` line rather than guess. The `TICKET:` line written after
+   `ORDER:` records them.
    If a ticket somehow has none yet (a resume of a log from before these
    lines existed), append it now. The body stays out of your
    context. Never move a card or comment on one — the card and its trail

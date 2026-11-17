@@ -499,6 +499,12 @@ TICKET: ABC-15 docs/sprints/TRACKER.md — Retry <with> backoff
     expect(out.indexOf("**Ticket titles**")).toBeLessThan(out.indexOf("## Waves"));
   });
 
+  test("the project page lists them under each open run's table, linked through the repo", () => {
+    const s = state(`${SPRINT_STANDALONE}TICKET: ABC-12 board/tickets/ABC-12.md — Expired tokens\n`);
+    const md = renderProjectMarkdown("p", [{ name: "My App", dir: "My App", state: s }], NOW.toISOString());
+    expect(md).toContain("- [`ABC-12`](My%20App/.sprint/../board/tickets/ABC-12.md) — Expired tokens");
+  });
+
   test("a log with no TICKET: lines renders no list", () => {
     expect(renderMarkdown(state(SPRINT_STANDALONE))).not.toContain("Ticket titles");
   });
