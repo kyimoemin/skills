@@ -21,6 +21,7 @@ import {
   safeFeatureName,
   sprintIdAndRun,
   stamp,
+  ticketHref,
 } from "./render-md";
 
 const NOW = new Date("2026-08-10T12:00:00Z");
@@ -477,5 +478,36 @@ describe("QA stages in the funnel", () => {
   test("the project page's Merged column still counts every merged ticket", () => {
     const md = renderProjectMarkdown("p", [{ name: "app", dir: "app", state: stateOf(LOG) }], NOW.toISOString());
     expect(md).toContain(`| [app](app/.sprint/${CURRENT_NAME}) | s | ⏸ waiting on you | 8 | 0 | 0 | 6 | 1 |`);
+  });
+});
+
+describe("ticket titles under the table", () => {
+  const state = (log: string) =>
+    buildSprintState({ sprint: parseSprintLog(log), sprintId: "s", qaSignals: [], now: NOW });
+
+  test("one line per table row, linked to its source, after the table", () => {
+    const out = renderMarkdown(
+      state(`${SPRINT_STANDALONE}TICKET: ABC-12 https://trello.com/c/aB12 — Expired tokens | 401
+TICKET: ABC-15 docs/sprints/TRACKER.md — Retry <with> backoff
+`),
+    );
+    expect(out).toContain("**Ticket titles**");
+    expect(out).toContain("- [`ABC-12`](https://trello.com/c/aB12) — Expired tokens \\| 401");
+    expect(out).toContain("- [`ABC-15`](../docs/sprints/TRACKER.md) — Retry &lt;with> backoff");
+    expect(out).toContain("- `ABC-9` — _no title logged_");
+    expect(out.indexOf("**Ticket titles**")).toBeGreaterThan(out.indexOf("| `ABC-9` |"));
+    expect(out.indexOf("**Ticket titles**")).toBeLessThan(out.indexOf("## Waves"));
+  });
+
+  test("a log with no TICKET: lines renders no list", () => {
+    expect(renderMarkdown(state(SPRINT_STANDALONE))).not.toContain("Ticket titles");
+  });
+
+  test("hrefs: URLs pass through, repo paths resolve from .sprint/, specials are encoded", () => {
+    expect(ticketHref("https://x.atlassian.net/browse/DI-1")).toBe("https://x.atlassian.net/browse/DI-1");
+    expect(ticketHref("./board/tickets/T-1.md")).toBe("../board/tickets/T-1.md");
+    expect(ticketHref("board/my ticket (v2).md#L3")).toBe("../board/my%20ticket%20%28v2%29.md#L3");
+    // from the project page, through that repo's .sprint/
+    expect(ticketHref("board/T-1.md", "Muse/.sprint/")).toBe("Muse/.sprint/../board/T-1.md");
   });
 });

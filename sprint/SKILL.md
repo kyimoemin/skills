@@ -152,7 +152,8 @@ rewrite that dies mid-write can truncate the whole log; an append can only
 lose its own last line. A ticket's current state is whatever its last line
 says.
 
-Append a line when: the order is planned, a ticket is dispatched, an
+Append a line when: the order is planned (then a `TICKET:` line per
+ticket, below), a ticket is dispatched, an
 implementer returns (status, PR, review rounds, head SHA, card column,
 tracker location), a ticket is merged, tracking is closed, the run stops.
 Plus every decisions-log entry (below). One line each — ticket id first
@@ -164,6 +165,10 @@ Use this format, so any later run can replay a log it didn't write:
 ```
 # sprint 4 — checkout hardening
 ORDER: ABC-12, ABC-15, ABC-9, ABC-20
+TICKET: ABC-12 https://trello.com/c/aB12cD34 — Return 401, not 500, on an expired token
+TICKET: ABC-15 https://trello.com/c/eF56gH78 — Refresh tokens before they expire
+TICKET: ABC-9 https://trello.com/c/iJ90kL12 — Add a migration for the sessions table
+TICKET: ABC-20 https://trello.com/c/mN34oP56 — Remember the last-used card
 WAVE: ABC-12 ABC-15
 ABC-12 dispatched
 ABC-15 dispatched
@@ -187,7 +192,7 @@ dispatches as soon as that merge phase's merges are done — alongside its
 QA, without waiting for the close (merge phase step 6; Trello has no
 shared tracker file to wait for).
 
-**Three of those lines are read strictly** — they are what the progress file
+**Four of those lines are read strictly** — they are what the progress file
 derives ticket state from, and a line it can't read leaves a finished ticket
 rendered as still in review for the life of the run:
 
@@ -197,6 +202,16 @@ rendered as still in review for the life of the run:
   qualifier word may sit between the id and `returned` (`ABC-12
   rebase-dispatch returned complete`), no more. `complete` alone means
   awaiting merge; the `ready-to-merge` token is a courtesy, not a flag.
+- **ticket:** `TICKET: <ticket> <source> — <title>`. Every `ORDER:` line
+  (each auto pass writes one) is followed, after any `CAPS:` or
+  `PROJECT:` line, by one of these for each ticket on it that the log has
+  none for yet. The title and source are things you already found while
+  locating the ticket for ordering. `<source>` is one token: the
+  card's URL, or the ticket's path from the repo root (a file board's
+  ticket file, or the tracker file that holds its row), or `-` when there
+  is nothing to link. The title is the ticket's own, on one line. The
+  progress file lists these under its ticket table; without them it
+  shows ids alone.
 - **heading:** above `ORDER:` only. One is enough; if you write both a run
   title and a section heading they join (`Run 11 · §2 — token completion`).
   Any heading below `ORDER:` is prose, not a title.
@@ -470,8 +485,12 @@ ordinary PR conflicts the merge phase already handles.
 Per ticket:
 
 1. **Locate the ticket** in the tracker: its id, where it lives (file
-   path or card), and — only when ordering needs them — the status and
-   blocker lines, grepped per the rule above. The body stays out of your
+   path or card), its title, and — only when ordering needs them — the
+   status and blocker lines, grepped per the rule above (a file ticket's
+   title is its heading line; a tracker row's is its title cell; a card's
+   is its name). The `TICKET:` line written after `ORDER:` records them.
+   If a ticket somehow has none yet (a resume of a log from before these
+   lines existed), append it now. The body stays out of your
    context. Never move a card or comment on one — the card and its trail
    belong to the implementers.
 2. **Dispatch a `ticket-implementer` subagent** with: ticket id, the

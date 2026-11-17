@@ -703,3 +703,24 @@ CC-385 qa dispatched
     expect(parseSprintLog(cut).tickets["CC-383"]?.dispatched ?? false).toBe(false);
   });
 });
+
+describe("parseSprintLog — TICKET: lines", () => {
+  test("title and link per ticket; `-` or no token means no link; newest wins", () => {
+    const p = parseSprintLog(`ORDER: ABC-12, ABC-15, ABC-9
+TICKET: ABC-12 https://trello.com/c/aB12 — Checkout returns 401 on expired tokens
+TICKET: ABC-15 - — Retry — with backoff
+TICKET: ABC-9 — Plain title, no link token
+TICKET: ABC-9 board/tickets/ABC-9.md — Renamed title
+TICKET: not-a-ticket x — ignored
+RUN STOPPED awaiting: ABC-15
+TICKET: ABC-15 - — logged after the stop
+`);
+    expect(p.info["ABC-12"]).toEqual({ title: "Checkout returns 401 on expired tokens", link: "https://trello.com/c/aB12" });
+    expect(p.info["ABC-15"]).toEqual({ title: "logged after the stop" });
+    expect(p.info["ABC-9"]).toEqual({ title: "Renamed title", link: "board/tickets/ABC-9.md" });
+    expect(p.info["not-a-ticket"]).toBeUndefined();
+    // bookkeeping: a TICKET: line neither resumes a stopped run nor adds a ticket
+    expect(p.run).toBe("stopped");
+    expect(Object.keys(p.tickets)).toEqual([]);
+  });
+});

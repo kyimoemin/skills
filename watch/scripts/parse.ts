@@ -27,8 +27,14 @@ export interface TicketEvents {
   answers: string[];
 }
 
+export interface TicketInfo {
+  title: string;
+  link?: string; // a URL, or a path relative to the repo root (may carry a #anchor)
+}
+
 export interface SprintParse {
   tickets: Record<string, TicketEvents>;
+  info: Record<string, TicketInfo>; // `TICKET: <id> <link|-> — <title>`, newest wins
   title?: string; // a leading "# ..." heading: the run's own name for itself
   decisions: string[];
   run: "running" | "stopped" | "complete";
@@ -73,6 +79,7 @@ export interface TicketState {
 }
 
 export interface DashState {
+  ticketInfo?: Record<string, TicketInfo>; // titles and links from TICKET: lines
   feature?: string; // sprint id
   title?: string; // the log's own heading, when it has one
   mode?: string;
@@ -132,6 +139,7 @@ export function parseSprintLog(text: string): SprintParse {
   const lines = text.split("\n").map((l) => l.trim());
   const out: SprintParse = {
     tickets: {},
+    info: {},
     decisions: [],
     run: "running",
     order: [],
@@ -186,6 +194,18 @@ export function parseSprintLog(text: string): SprintParse {
       // preamble's headings join; anything below ORDER: is prose.
       if (!out.order.length) {
         out.title = out.title ? `${out.title} · ${m[1].trim()}` : m[1].trim();
+      }
+      continue;
+    }
+    if ((m = line.match(/^TICKET:\s*(\S+)\s+(?:(\S+)\s+)?[—–-]\s+(.+)$/))) {
+      // /sprint logs each ticket's title and source once, when it locates
+      // the ticket — the log is the only thing the renderer reads, and the
+      // trackers it would otherwise have to parse differ per project.
+      // Bookkeeping: it neither resumes a stopped run nor stales a stop note.
+      if (TICKET_RE.test(m[1])) {
+        // `-` (or no token at all) means the ticket has no linkable source
+        const link = !m[2] || m[2] === "-" ? undefined : m[2];
+        out.info[m[1]] = { title: m[3].trim(), ...(link ? { link } : {}) };
       }
       continue;
     }
@@ -583,6 +603,7 @@ export function buildSprintState(inp: SprintBuildInputs): DashState {
   return {
     feature: inp.sprintId,
     title: sp.title,
+    ticketInfo: Object.keys(sp.info).length ? sp.info : undefined,
     mode: [sp.auto && "auto", sp.serial && "serial"].filter(Boolean).join(" · ") || undefined,
     run: sp.run,
     awaiting,

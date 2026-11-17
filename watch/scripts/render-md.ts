@@ -137,10 +137,51 @@ function ticketTable(state: DashState, emptyNote: string, heading = "## Tickets"
         `| \`${mdCell(t.id)}\` | ${badge(t.state)} | ${pr} | ${t.effort ?? "—"} | ${rounds} | ${t.cost ?? "—"} | ${qa} | ${mdCell(t.detail ?? "")} |`,
       );
     }
+    const list = ticketList(state, linkBase);
+    if (list.length) lines.push("", ...list);
   } else {
     lines.push(emptyNote);
   }
   lines.push("");
+  return lines;
+}
+
+/** A logged source → an href relative to the progress file. URLs pass
+ *  through; a path is relative to the repo root, which is the parent of
+ *  the `.sprint/` that `linkBase` names (`../` from the repo's own page). */
+export function ticketHref(link: string, linkBase = ""): string {
+  const href = /^https?:\/\//i.test(link)
+    ? link
+    : link.startsWith("/")
+      ? link
+      : `${linkBase}../${link.replace(/^\.\//, "")}`;
+  return encodeURI(decodeURISafe(href)).replace(/\(/g, "%28").replace(/\)/g, "%29");
+}
+
+function decodeURISafe(s: string): string {
+  try {
+    return decodeURI(s);
+  } catch {
+    return s;
+  }
+}
+
+/** Titles and sources under the table, in table order, from the run's
+ *  TICKET: lines. A log written before /sprint logged them has none, and
+ *  then the list is left out rather than filled with blanks. */
+function ticketList(state: DashState, linkBase: string): string[] {
+  const info = state.ticketInfo;
+  if (!info) return [];
+  const lines = ["**Ticket titles**", ""];
+  for (const t of state.tickets) {
+    const i = info[t.id];
+    const id = `\`${mdCell(t.id)}\``;
+    if (!i) {
+      lines.push(`- ${id} — _no title logged_`);
+      continue;
+    }
+    lines.push(`- ${i.link ? `[${id}](${ticketHref(i.link, linkBase)})` : id} — ${mdCell(i.title)}`);
+  }
   return lines;
 }
 
