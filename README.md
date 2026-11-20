@@ -87,7 +87,7 @@ nodes are subagents — everything else is a skill you invoke.
 | Anytime | `ui-verify` | Proves a UI renders and behaves as claimed on a simulator, emulator or browser, with measured evidence; implementers pick it up when criteria ask for on-device proof |
 | Anytime | `/audit` | `all`, or lens names (`/audit security`): one read-only `audit-*` subagent per lens, top findings checked against the code, one ranked report in `docs/audits/<date>/summary.md` (or `.audit/` in a repo with no `docs/`); files no tickets |
 | Anytime | `audit-*` | Seven read-only auditors (product, ui-ux, business, architecture, engineering, security, release-ops); each writes one report, runs no checks and touches nothing live |
-| Anytime | `/afk` | Stepping away: keeps the Mac awake for this session, carries on the current task, decides reversible calls itself, parks critical ones (merges to main, deploys, deletes, messages), logs every decision to `~/.claude/afk/`, and pushes to your phone only when blocked or done. Optional return time (`/afk 6pm`) |
+| Anytime | `/afk` | Stepping away: keeps the Mac awake for this session, carries on the current task, decides reversible calls itself, parks critical ones (merges to main, deploys, deletes, messages), logs every decision to `~/.claude/afk/`, and pushes to your phone only when blocked or done. Optional return time (`/afk 6pm`); `/afk off` ends it |
 
 ## The handshakes that hold it together
 
